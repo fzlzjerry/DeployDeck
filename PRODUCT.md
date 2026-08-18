@@ -21,15 +21,16 @@ Quiet, precise, nocturnal. Like a hardware instrument on a night desk: graphite 
 - Marketing SaaS dashboards with giant metric cards and uptime theater
 - Website-in-Electron chrome (sticky marketing nav, glass stacks, gradient blobs)
 - Neon cyberpunk / AI-purple tool skins
-- Multi-page onboarding carousels that delay first value
+- Onboarding that sells rather than sets up: feature tours, value props, screenshots of the product you are already inside
 
 ## Design Principles
 
 - The tool disappears into the task.
 - Density over decoration. Tables and filters are the product.
 - One accent, used rarely. Status color carries meaning, not brand.
-- First-run setup is real work (connect, choose prefs), not a tour of features.
-- Motion clarifies state changes. It never makes the user wait to start working.
+- First-run setup is real work (connect, choose prefs), paced across steps. Every step must do something; none of them may exist to explain a feature.
+- Motion clarifies state changes. First run is the one place it may also be choreographed, because powering on a console is a moment worth having.
+- The workspace stays quiet. Whatever the first run does, it does not set the tone for the tables.
 
 ## Accessibility & Inclusion
 

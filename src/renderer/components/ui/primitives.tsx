@@ -1,15 +1,18 @@
 import * as React from "react";
 import * as CheckboxPrimitive from "@radix-ui/react-checkbox";
 import * as LabelPrimitive from "@radix-ui/react-label";
+import * as RadioGroupPrimitive from "@radix-ui/react-radio-group";
 import * as SelectPrimitive from "@radix-ui/react-select";
 import * as SeparatorPrimitive from "@radix-ui/react-separator";
 import * as SwitchPrimitive from "@radix-ui/react-switch";
 import * as TabsPrimitive from "@radix-ui/react-tabs";
 import * as TooltipPrimitive from "@radix-ui/react-tooltip";
 import { Slot } from "@radix-ui/react-slot";
+import { motion, useReducedMotion } from "motion/react";
 import { Check, ChevronDown, LoaderCircle } from "lucide-react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/cn";
+import { easeOutExpo } from "@/lib/motion";
 
 const controlFocus =
   "outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-offset-1 focus-visible:ring-offset-bg";
@@ -148,7 +151,7 @@ const badgeVariants = cva("inline-flex items-center gap-1 rounded-md px-1.5 py-0
       neutral: "bg-surface-2 text-muted",
       outline: "border border-line bg-bg text-muted",
       success: "bg-ready/12 text-ready",
-      warning: "bg-ember/12 text-ember",
+      warning: "bg-ember-soft text-ember-ink",
       danger: "bg-failed/12 text-failed",
     },
   },
@@ -192,6 +195,40 @@ export const Skeleton = React.forwardRef<HTMLDivElement, React.ComponentPropsWit
     />
   );
 });
+
+const SKELETON_WIDTHS = ["w-4/5", "w-1/2", "w-2/3", "w-1/3", "w-3/5", "w-2/5"];
+
+/** Row-shaped loading placeholder for `.data-table` screens. */
+export function TableSkeleton({
+  columns = 4,
+  rows = 8,
+  label = "Loading",
+  className,
+}: {
+  columns?: number;
+  rows?: number;
+  label?: string;
+  className?: string;
+}) {
+  return (
+    <div className={cn("px-3 py-2", className)} role="status" aria-label={label}>
+      {Array.from({ length: rows }).map((_, rowIndex) => (
+        <div
+          key={rowIndex}
+          className="grid h-9 items-center gap-4"
+          style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
+        >
+          {Array.from({ length: columns }).map((__, columnIndex) => (
+            <Skeleton
+              key={columnIndex}
+              className={cn("h-3", SKELETON_WIDTHS[(rowIndex + columnIndex) % SKELETON_WIDTHS.length])}
+            />
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export interface SelectControlOption {
   value: string;
@@ -248,7 +285,7 @@ export function SelectControl({
           className={cn(
             "z-50 max-h-[min(320px,var(--radix-select-content-available-height))] min-w-[var(--radix-select-trigger-width)]",
             "overflow-hidden rounded-md bg-bg p-1 text-ink shadow-[var(--shadow-popover)]",
-            "data-[state=open]:animate-in data-[state=closed]:animate-out",
+            "popover-motion origin-[var(--radix-select-content-transform-origin)]",
           )}
         >
           <SelectPrimitive.Viewport>
@@ -264,7 +301,7 @@ export function SelectControl({
               >
                 <SelectPrimitive.ItemText>{option.label}</SelectPrimitive.ItemText>
                 <SelectPrimitive.ItemIndicator className="absolute right-2 inline-flex items-center">
-                  <Check aria-hidden="true" className="size-3.5 text-ember" />
+                  <Check aria-hidden="true" className="size-3.5 text-ember-ink" />
                 </SelectPrimitive.ItemIndicator>
               </SelectPrimitive.Item>
             ))}
@@ -308,6 +345,83 @@ export const SwitchControl = React.forwardRef<
     </SwitchPrimitive.Root>
   );
 });
+
+export interface SegmentedControlOption<T extends string> {
+  value: T;
+  label: string;
+  icon?: React.ComponentType<{ className?: string; strokeWidth?: number }>;
+  disabled?: boolean;
+}
+
+export interface SegmentedControlProps<T extends string> {
+  value: T;
+  onValueChange: (value: T) => void;
+  options: readonly SegmentedControlOption<T>[];
+  ariaLabel: string;
+  className?: string;
+  size?: "sm" | "default";
+  disabled?: boolean;
+}
+
+export function SegmentedControl<T extends string>({
+  value,
+  onValueChange,
+  options,
+  ariaLabel,
+  className,
+  size = "default",
+  disabled,
+}: SegmentedControlProps<T>) {
+  const reduce = useReducedMotion();
+  const indicatorId = React.useId();
+
+  return (
+    <RadioGroupPrimitive.Root
+      value={value}
+      onValueChange={(next) => onValueChange(next as T)}
+      disabled={disabled}
+      aria-label={ariaLabel}
+      orientation="horizontal"
+      loop
+      className={cn(
+        "inline-flex shrink-0 items-center gap-0.5 rounded-md bg-surface p-0.5",
+        disabled && "opacity-45",
+        className,
+      )}
+    >
+      {options.map((option) => {
+        const Icon = option.icon;
+        const active = option.value === value;
+        return (
+          <RadioGroupPrimitive.Item
+            key={option.value}
+            value={option.value}
+            disabled={option.disabled}
+            className={cn(
+              "relative inline-flex select-none items-center justify-center gap-1.5 rounded-[6px] font-medium",
+              "outline-none transition-colors duration-150 ease-[var(--ease-out-expo)] motion-reduce:transition-none",
+              "focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]",
+              "disabled:pointer-events-none disabled:opacity-40",
+              size === "sm" ? "h-6 px-2 text-[11px]" : "h-7 px-2.5 text-[12px]",
+              active ? "text-ink" : "text-muted hover:text-ink",
+            )}
+          >
+            {active ? (
+              <motion.span
+                layoutId={indicatorId}
+                aria-hidden="true"
+                className="absolute inset-0 rounded-[6px] bg-bg shadow-[inset_0_0_0_1px_var(--line)]"
+                transition={reduce ? { duration: 0 } : { duration: 0.18, ease: easeOutExpo }}
+              />
+            ) : null}
+            {Icon ? <Icon className={cn("relative size-3.5", active && "text-ember-ink")} strokeWidth={1.75} /> : null}
+            <span className="relative">{option.label}</span>
+          </RadioGroupPrimitive.Item>
+        );
+      })}
+    </RadioGroupPrimitive.Root>
+  );
+}
 
 export interface CheckboxControlProps
   extends Omit<React.ComponentPropsWithoutRef<typeof CheckboxPrimitive.Root>, "onCheckedChange"> {
@@ -434,7 +548,7 @@ export function Tooltip({
           collisionPadding={8}
           className={cn(
             "z-50 max-w-64 rounded-md bg-ink px-2 py-1 text-[11px] leading-4 text-bg",
-            "data-[state=delayed-open]:animate-in data-[state=closed]:animate-out",
+            "popover-motion origin-[var(--radix-tooltip-content-transform-origin)]",
             contentClassName,
           )}
         >

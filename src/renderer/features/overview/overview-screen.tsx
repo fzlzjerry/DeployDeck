@@ -1,12 +1,12 @@
 import { ArrowRight } from "lucide-react";
 import type { ReactNode } from "react";
 import type { DeploymentFilters, DeploymentState, UnifiedDeployment } from "@shared/models";
-import { EmptyState } from "@/components/common/empty-state";
+import { EmptyState, ScreenError } from "@/components/common/empty-state";
 import { StatusBadge } from "@/components/common/status-badge";
 import { Button, Skeleton } from "@/components/ui/primitives";
 import { useConnection, usePrefs } from "@/hooks/use-connection";
 import { useActivity, useProjects, useUnifiedDeployments } from "@/hooks/use-data";
-import { formatWhen, providerLabel } from "@/lib/format";
+import { errorMessage, formatWhen, providerLabel } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { useUiStore } from "@/stores/ui-store";
 
@@ -124,6 +124,8 @@ export function OverviewScreen() {
           <Section title="Local activity" action={{ label: "View activity", onClick: () => setScreen("activity") }}>
             {activity.isLoading ? (
               <LoadingRows count={3} />
+            ) : activity.isError ? (
+              <ScreenError size="inline" message={errorMessage(activity.error)} onRetry={() => void activity.refetch()} />
             ) : (activity.data ?? []).length === 0 ? (
               <EmptyRow>Retries, promotions, and DNS edits made here will appear in this timeline.</EmptyRow>
             ) : (
@@ -165,6 +167,8 @@ export function OverviewScreen() {
           <Section title="Recently modified" action={{ label: "View projects", onClick: () => setScreen("projects") }}>
             {projects.isLoading ? (
               <LoadingRows count={3} />
+            ) : projects.isError ? (
+              <ScreenError size="inline" message={errorMessage(projects.error)} onRetry={() => void projects.refetch()} />
             ) : projectItems.length === 0 ? (
               <EmptyRow>Projects will appear after the first refresh.</EmptyRow>
             ) : (
@@ -206,7 +210,7 @@ function Signal({
       <span
         className={cn(
           "size-1.5 rounded-full",
-          tone === "building" && "bg-[var(--building)]",
+          tone === "building" && "bg-building",
           tone === "failed" && "bg-failed",
           tone === "ready" && "bg-ready",
         )}
@@ -264,11 +268,15 @@ function DeploymentRow({
   return (
     <button
       type="button"
-      className="group flex min-h-10 w-full items-center justify-between gap-4 border-b border-line/70 py-2 text-left last:border-0 hover:text-ember"
+      className={cn(
+        "group flex min-h-10 w-full items-center justify-between gap-4 border-b border-line/70 px-2 py-2 text-left last:border-0",
+        "-mx-2 rounded-md transition-colors duration-150 ease-[var(--ease-out-expo)] motion-reduce:transition-none",
+        "hover:bg-surface focus-visible:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]",
+      )}
       onClick={() => onOpen(item)}
     >
       <div className="min-w-0">
-        <p className="truncate text-[12px] font-medium text-ink group-hover:text-ember">{item.projectName}</p>
+        <p className="truncate text-[12px] font-medium text-ink">{item.projectName}</p>
         <p className="mt-0.5 truncate text-[10px] text-muted">{context}</p>
       </div>
       <div className="flex shrink-0 items-center gap-3">
@@ -282,8 +290,8 @@ function DeploymentRow({
   );
 }
 
-function EmptyRow({ children }: { children: ReactNode }) {
-  return <p className="py-3 text-[12px] leading-5 text-muted">{children}</p>;
+function EmptyRow({ children }: { children: string }) {
+  return <EmptyState size="inline" title={children} />;
 }
 
 function LoadingRows({ count }: { count: number }) {

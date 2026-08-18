@@ -78,17 +78,35 @@ export interface SectionHeaderProps extends Omit<React.ComponentPropsWithoutRef<
   title: React.ReactNode;
   description?: React.ReactNode;
   actions?: React.ReactNode;
+  /** `sm` steps the heading down so sections sit below a screen title. */
+  size?: "sm" | "default";
 }
 
 export const SectionHeader = React.forwardRef<HTMLDivElement, SectionHeaderProps>(function SectionHeader(
-  { title, description, actions, className, ...props },
+  { title, description, actions, size = "default", className, ...props },
   ref,
 ) {
   return (
     <div ref={ref} className={cn("flex items-start justify-between gap-4", className)} {...props}>
       <div className="min-w-0">
-        <h2 className="text-[15px] font-semibold leading-5 text-ink text-wrap-balance">{title}</h2>
-        {description ? <p className="mt-1 max-w-[65ch] text-[12px] leading-5 text-muted text-wrap-pretty">{description}</p> : null}
+        <h2
+          className={cn(
+            "font-semibold text-balance text-ink",
+            size === "sm" ? "text-[13px] leading-4" : "text-[15px] leading-5",
+          )}
+        >
+          {title}
+        </h2>
+        {description ? (
+          <p
+            className={cn(
+              "max-w-[65ch] text-pretty text-muted",
+              size === "sm" ? "mt-0.5 text-[12px] leading-4" : "mt-1 text-[12px] leading-5",
+            )}
+          >
+            {description}
+          </p>
+        ) : null}
       </div>
       {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : null}
     </div>
@@ -98,17 +116,37 @@ export const SectionHeader = React.forwardRef<HTMLDivElement, SectionHeaderProps
 export interface SettingsSectionProps extends Omit<React.ComponentPropsWithoutRef<"section">, "title"> {
   title: React.ReactNode;
   description?: React.ReactNode;
+  size?: SectionHeaderProps["size"];
 }
 
 export const SettingsSection = React.forwardRef<HTMLElement, SettingsSectionProps>(function SettingsSection(
-  { title, description, children, className, ...props },
+  { title, description, size, children, className, ...props },
   ref,
 ) {
   return (
     <section ref={ref} className={cn("max-w-2xl space-y-3", className)} {...props}>
-      <SectionHeader title={title} description={description} />
+      <SectionHeader title={title} description={description} size={size} />
       <div className="divide-y divide-line/70 overflow-hidden rounded-lg border border-line bg-surface/45">{children}</div>
     </section>
+  );
+});
+
+export interface DetailRowProps extends Omit<React.ComponentPropsWithoutRef<"div">, "title"> {
+  label: React.ReactNode;
+  value: React.ReactNode;
+  mono?: boolean;
+}
+
+/** Label/value pair for inspector panels. Render inside a <dl>. */
+export const DetailRow = React.forwardRef<HTMLDivElement, DetailRowProps>(function DetailRow(
+  { label, value, mono = false, className, ...props },
+  ref,
+) {
+  return (
+    <div ref={ref} className={cn("grid grid-cols-[120px_minmax(0,1fr)] gap-3 py-2", className)} {...props}>
+      <dt className="text-muted">{label}</dt>
+      <dd className={cn("min-w-0 break-words select-text", mono && "font-mono text-[11px]")}>{value}</dd>
+    </div>
   );
 });
 

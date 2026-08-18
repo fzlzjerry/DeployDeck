@@ -3,7 +3,7 @@ import { useState } from "react";
 import { EmptyState, ScreenError } from "@/components/common/empty-state";
 import { ProviderMark } from "@/components/common/status-badge";
 import { ScreenToolbar } from "@/components/ui/layout";
-import { Button, Input, SelectControl } from "@/components/ui/primitives";
+import { Button, Input, SelectControl, TableSkeleton } from "@/components/ui/primitives";
 import { useConnection } from "@/hooks/use-connection";
 import { useProjects } from "@/hooks/use-data";
 import { copyText, errorMessage } from "@/lib/format";
@@ -23,22 +23,34 @@ export function DomainsScreen() {
     queryKey: ["domains", projects.data],
     enabled: Boolean(projects.data),
     queryFn: async () => {
+      // A source that fails must not be indistinguishable from a source with no domains.
+      const failed: string[] = [];
+      const collect = async <T,>(label: string, run: () => Promise<T[]>): Promise<T[]> => {
+        try {
+          return await run();
+        } catch {
+          failed.push(label);
+          return [];
+        }
+      };
+
       const vercel = await Promise.all(
         (projects.data?.vercel ?? []).map((project) =>
-          window.deployDeck.vercel.listDomains(project.id).catch(() => []),
+          collect(project.name, () => window.deployDeck.vercel.listDomains(project.id)),
         ),
       );
       const pages = await Promise.all(
         (projects.data?.pages ?? []).map((project) =>
-          window.deployDeck.cloudflare.listPagesDomains(project.accountId, project.name).catch(() => []),
+          collect(project.name, () => window.deployDeck.cloudflare.listPagesDomains(project.accountId, project.name)),
         ),
       );
       const workers = await Promise.all(
         [...new Set((projects.data?.workers ?? []).map((item) => item.accountId))].map((accountId) =>
-          window.deployDeck.cloudflare.listWorkerDomains(accountId).catch(() => []),
+          collect("Workers", () => window.deployDeck.cloudflare.listWorkerDomains(accountId)),
         ),
       );
-      return [...vercel.flat(), ...pages.flat(), ...workers.flat()];
+
+      return { items: [...vercel.flat(), ...pages.flat(), ...workers.flat()], failed };
     },
   });
 
@@ -50,7 +62,8 @@ export function DomainsScreen() {
     return <ScreenError message={errorMessage(projects.error)} onRetry={() => void projects.refetch()} />;
   }
 
-  const domains = query.data ?? [];
+  const domains = query.data?.items ?? [];
+  const failedSources = query.data?.failed ?? [];
   const targetOptions = [
     ...(projects.data?.vercel ?? []).map((project) => ({
       value: `vercel:${project.id}`,
@@ -111,11 +124,27 @@ export function DomainsScreen() {
         </Button>
       </ScreenToolbar>
 
+      {failedSources.length > 0 ? (
+        <div
+          role="status"
+          className="flex items-center justify-between gap-3 border-b border-line bg-failed-soft px-4 py-2 text-[12px] text-failed"
+        >
+          <span className="min-w-0 truncate">
+            {failedSources.length === 1
+              ? `Domains for ${failedSources[0]} could not be loaded.`
+              : `Domains for ${failedSources.length} sources could not be loaded.`}
+          </span>
+          <Button size="sm" variant="ghost" className="shrink-0 text-failed" onClick={() => void query.refetch()}>
+            Retry
+          </Button>
+        </div>
+      ) : null}
+
       <div className="min-h-0 flex-1 overflow-auto">
         {query.isError ? (
           <ScreenError message={errorMessage(query.error)} onRetry={() => void query.refetch()} />
         ) : query.isLoading || projects.isLoading ? (
-          <EmptyState title="Loading domains" body="Reading domain assignments from connected providers." />
+          <TableSkeleton columns={5} label="Loading domains" />
         ) : domains.length === 0 ? (
           <EmptyState
             title="No domains yet"

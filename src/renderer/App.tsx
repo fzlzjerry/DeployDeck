@@ -18,7 +18,7 @@ import { ProjectsScreen } from "@/features/projects/projects-screen";
 import { SettingsScreen } from "@/features/settings/settings-screen";
 import { useConnection, usePrefs } from "@/hooks/use-connection";
 import { useHostEvents } from "@/hooks/use-host-events";
-import { fadeVariants, stateChange } from "@/lib/motion";
+import { easeOutExpo, fadeVariants, stateChange } from "@/lib/motion";
 import { useUiStore } from "@/stores/ui-store";
 
 export function App() {
@@ -86,7 +86,7 @@ export function App() {
   else if (showConnect) mode = "connect";
 
   return (
-    <div className="h-full bg-bg text-ink">
+    <div className="relative h-full bg-bg text-ink">
       {offline ? (
         <div
           role="status"
@@ -104,7 +104,7 @@ export function App() {
           animate="center"
           exit="exit"
           transition={reduce ? { duration: 0.12 } : stateChange}
-          className="h-full"
+          className="absolute inset-0"
         >
           {mode === "boot" ? <BootScreen /> : null}
           {mode === "setup" ? <SetupGuide onFinished={() => void finishSetup()} /> : null}
@@ -137,12 +137,28 @@ export function App() {
 }
 
 function BootScreen() {
+  const reduce = useReducedMotion();
+  const [showIndicator, setShowIndicator] = useState(false);
+
+  // A fast boot should look instant, not flash a loading state for one frame.
+  useEffect(() => {
+    const timer = window.setTimeout(() => setShowIndicator(true), 150);
+    return () => window.clearTimeout(timer);
+  }, []);
+
   return (
     <div className="app-drag flex h-full items-center justify-center bg-bg">
-      <div className="flex items-center gap-3 text-muted">
+      <motion.div
+        role="status"
+        aria-live="polite"
+        className="flex items-center gap-3 text-muted"
+        initial={false}
+        animate={{ opacity: showIndicator ? 1 : 0 }}
+        transition={reduce ? { duration: 0 } : { duration: 0.2, ease: easeOutExpo }}
+      >
         <Logo className="size-8" />
         <span className="text-[13px]">Opening workspace…</span>
-      </div>
+      </motion.div>
     </div>
   );
 }

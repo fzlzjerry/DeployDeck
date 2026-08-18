@@ -27,3 +27,12 @@ export const fadeVariants: Variants = {
   center: { opacity: 1 },
   exit: { opacity: 0 },
 };
+
+/**
+ * Read once per animation rather than via gsap.matchMedia(), because a
+ * matchMedia instance created inside useGSAP is not reverted by its context
+ * and would leak a listener on every run.
+ */
+export function prefersReducedMotion(): boolean {
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}

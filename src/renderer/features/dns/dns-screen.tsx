@@ -6,6 +6,7 @@ import { useId, useMemo, useState, type FormEvent, type ReactNode } from "react"
 import { toast } from "sonner";
 import { EmptyState, ScreenError } from "@/components/common/empty-state";
 import { InspectorHeader, InspectorPanel, ScreenToolbar } from "@/components/ui/layout";
+import { DropdownMenuContent, DropdownMenuItem } from "@/components/ui/menu";
 import {
   Badge,
   Button,
@@ -14,6 +15,7 @@ import {
   Label,
   SelectControl,
   Skeleton,
+  TableSkeleton,
   Tooltip,
 } from "@/components/ui/primitives";
 import { useConnection } from "@/hooks/use-connection";
@@ -135,11 +137,12 @@ export function DnsScreen() {
               ))}
             </div>
           ) : zones.isError ? (
-            <div className="px-2 py-4 text-[12px] text-failed">{errorMessage(zones.error)}</div>
+            <ScreenError size="inline" message={errorMessage(zones.error)} onRetry={() => void zones.refetch()} />
           ) : visibleZones.length === 0 ? (
-            <p className="px-2 py-4 text-[12px] leading-5 text-muted">
-              {zoneSearch ? "No zones match this search." : "No zones are available for this account."}
-            </p>
+            <EmptyState
+              size="inline"
+              title={zoneSearch ? "No zones match this search." : "No zones are available for this account."}
+            />
           ) : (
             visibleZones.map((zone) => {
               const active = selectedZone?.id === zone.id;
@@ -150,7 +153,8 @@ export function DnsScreen() {
                   aria-current={active ? "page" : undefined}
                   className={cn(
                     "mb-1 w-full rounded-md px-2 py-2 text-left text-[12px] outline-none",
-                    "focus-visible:ring-2 focus-visible:ring-ember/55",
+                    "transition-colors duration-150 ease-[var(--ease-out-expo)] motion-reduce:transition-none",
+                    "focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]",
                     active
                       ? "bg-bg shadow-[inset_0_0_0_1px_var(--line)]"
                       : "text-muted hover:bg-bg/70 hover:text-ink",
@@ -230,11 +234,7 @@ export function DnsScreen() {
             {records.isError ? (
               <ScreenError message={errorMessage(records.error)} onRetry={() => void records.refetch()} />
             ) : records.isLoading ? (
-              <div className="space-y-2 p-4" aria-label="Loading DNS records">
-                {Array.from({ length: 8 }).map((_, index) => (
-                  <Skeleton key={index} className="h-8" />
-                ))}
-              </div>
+              <TableSkeleton columns={5} label="Loading DNS records" />
             ) : items.length === 0 ? (
               <EmptyState
                 title="No DNS records match"
@@ -257,11 +257,10 @@ export function DnsScreen() {
           </>
         ) : zones.isError ? (
           <ScreenError message={errorMessage(zones.error)} onRetry={() => void zones.refetch()} />
+        ) : zones.isLoading ? (
+          <TableSkeleton columns={5} label="Loading zones" />
         ) : (
-          <EmptyState
-            title={zones.isLoading ? "Loading zones" : "Select a zone"}
-            body={zones.isLoading ? "Fetching zones from Cloudflare." : "Choose a Cloudflare zone to manage its DNS records."}
-          />
+          <EmptyState title="Select a zone" body="Choose a Cloudflare zone to manage its DNS records." />
         )}
       </div>
 
@@ -403,25 +402,10 @@ function CopyRecordMenu({ record }: { record: DnsRecord }) {
         </DropdownMenu.Trigger>
       </Tooltip>
       <DropdownMenu.Portal>
-        <DropdownMenu.Content
-          align="end"
-          sideOffset={4}
-          collisionPadding={8}
-          className="z-50 min-w-32 rounded-md bg-bg p-1 text-[12px] text-ink shadow-[var(--shadow-popover)]"
-        >
-          <DropdownMenu.Item
-            className="cursor-default rounded px-2 py-1.5 outline-none data-[highlighted]:bg-surface-2"
-            onSelect={() => copy("name", record.name)}
-          >
-            Copy name
-          </DropdownMenu.Item>
-          <DropdownMenu.Item
-            className="cursor-default rounded px-2 py-1.5 outline-none data-[highlighted]:bg-surface-2"
-            onSelect={() => copy("value", record.content)}
-          >
-            Copy value
-          </DropdownMenu.Item>
-        </DropdownMenu.Content>
+        <DropdownMenuContent align="end" className="min-w-32">
+          <DropdownMenuItem onSelect={() => copy("name", record.name)}>Copy name</DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => copy("value", record.content)}>Copy value</DropdownMenuItem>
+        </DropdownMenuContent>
       </DropdownMenu.Portal>
     </DropdownMenu.Root>
   );

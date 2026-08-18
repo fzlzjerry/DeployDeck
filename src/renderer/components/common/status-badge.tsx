@@ -3,11 +3,11 @@ import { cn } from "@/lib/cn";
 import { providerLabel, stateLabel } from "@/lib/format";
 
 const colors: Record<DeploymentState, string> = {
-  queued: "bg-[var(--queued)]",
-  building: "bg-[var(--building)]",
-  ready: "bg-[var(--ready)]",
-  failed: "bg-[var(--failed)]",
-  canceled: "bg-[var(--canceled)]",
+  queued: "bg-queued",
+  building: "bg-building",
+  ready: "bg-ready",
+  failed: "bg-failed",
+  canceled: "bg-canceled",
   unknown: "bg-muted",
 };
 

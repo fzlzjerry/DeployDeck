@@ -88,7 +88,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                       transition={reduce ? { duration: 0 } : { duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
                     />
                   ) : null}
-                  <Icon className={cn("relative size-3.5", active && "text-ember")} strokeWidth={1.75} />
+                  <Icon className={cn("relative size-3.5", active && "text-ember-ink")} strokeWidth={1.75} />
                   <span className="relative">{item.label}</span>
                 </button>
               );
@@ -110,7 +110,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                     transition={reduce ? { duration: 0 } : { duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
                   />
                 ) : null}
-                <Settings className={cn("relative size-3.5", screen === "settings" && "text-ember")} strokeWidth={1.75} />
+                <Settings className={cn("relative size-3.5", screen === "settings" && "text-ember-ink")} strokeWidth={1.75} />
                 <span className="relative">Settings</span>
               </button>
             </div>

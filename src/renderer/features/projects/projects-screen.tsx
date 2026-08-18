@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import type { UnifiedProject, WorkerScript } from "@shared/models";
 import { EmptyState, ScreenError } from "@/components/common/empty-state";
 import { ProviderMark, StatusBadge } from "@/components/common/status-badge";
-import { InspectorHeader, InspectorPanel, ScreenToolbar } from "@/components/ui/layout";
+import { DetailRow, InspectorHeader, InspectorPanel, ScreenToolbar } from "@/components/ui/layout";
 import {
   Button,
   Input,
@@ -200,10 +200,7 @@ function ProjectsTable({
                 }}
                 tabIndex={active === index || (active === -1 && index === 0) ? 0 : -1}
                 aria-selected={rowSelected || undefined}
-                className={cn(
-                  "cursor-default outline-none focus-visible:bg-surface-2",
-                  rowSelected && "bg-ember-soft/55",
-                )}
+                className="cursor-default outline-none"
                 onFocus={() => setActive(index)}
                 onClick={() => {
                   setActive(index);
@@ -355,15 +352,6 @@ function ProjectDetail({ project }: { project: UnifiedProject }) {
   );
 }
 
-function DetailRow({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) {
-  return (
-    <div className="grid grid-cols-[120px_minmax(0,1fr)] gap-3 py-2">
-      <dt className="text-muted">{label}</dt>
-      <dd className={cn("min-w-0 break-words select-text", mono && "font-mono text-[11px]")}>{value}</dd>
-    </div>
-  );
-}
-
 function ProjectDeployments({ project }: { project: UnifiedProject }) {
   const openDeployment = useUiStore((state) => state.openDeployment);
   const query = useQuery({
@@ -394,7 +382,12 @@ function ProjectDeployments({ project }: { project: UnifiedProject }) {
             <button
               type="button"
               key={item.id}
-              className="flex min-h-10 w-full items-center justify-between gap-3 py-2 text-left hover:text-ember"
+              className={cn(
+                "-mx-2 flex min-h-10 w-full items-center justify-between gap-3 rounded-md px-2 py-2 text-left",
+                "transition-colors duration-150 ease-[var(--ease-out-expo)] motion-reduce:transition-none",
+                "hover:bg-surface focus-visible:bg-surface focus-visible:outline-none",
+                "focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]",
+              )}
               onClick={() => openDeployment(item)}
             >
               <StatusBadge state={item.state} />
@@ -1018,16 +1011,9 @@ function PanelLoading({ compact = false }: { compact?: boolean }) {
 }
 
 function PanelMessage({ children }: { children: string }) {
-  return <p className="py-4 text-[12px] leading-5 text-muted">{children}</p>;
+  return <EmptyState size="inline" title={children} />;
 }
 
 function InlineError({ message, onRetry }: { message: string; onRetry: () => void }) {
-  return (
-    <div className="flex items-center justify-between gap-3 p-3 text-[12px]" role="alert">
-      <span className="min-w-0 text-failed">{message}</span>
-      <Button size="sm" variant="ghost" onClick={onRetry}>
-        Retry
-      </Button>
-    </div>
-  );
+  return <ScreenError size="inline" message={message} onRetry={onRetry} />;
 }

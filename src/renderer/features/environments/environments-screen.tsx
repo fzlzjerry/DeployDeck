@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { EmptyState, ScreenError } from "@/components/common/empty-state";
 import { ScreenToolbar } from "@/components/ui/layout";
-import { Button, CheckboxControl, Input, Label, SelectControl } from "@/components/ui/primitives";
+import { Button, CheckboxControl, Input, Label, SelectControl, TableSkeleton } from "@/components/ui/primitives";
 import { useConnection } from "@/hooks/use-connection";
 import { useProjects } from "@/hooks/use-data";
 import { errorMessage, formatWhen } from "@/lib/format";
@@ -221,7 +221,7 @@ export function EnvironmentsScreen() {
         ) : query.isError ? (
           <ScreenError message={errorMessage(query.error)} onRetry={() => void query.refetch()} />
         ) : query.isLoading ? (
-          <EmptyState title="Loading variables" body="Reading the selected environment from the provider." />
+          <TableSkeleton columns={5} label="Loading variables" />
         ) : items.length === 0 ? (
           <EmptyState
             title="No variables"

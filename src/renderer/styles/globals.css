@@ -2,36 +2,49 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/*
+ * Cold chassis, one warm lamp.
+ * Neutrals sit on a single blue-steel hue so the amber indicator reads as a
+ * signal rather than as brand decoration. Two accent roles, because the lit
+ * amber is bright enough to fill a button but too bright to be text on light.
+ *   --ember      fill of a lit control (always paired with --ember-fg)
+ *   --ember-ink  accent for text and icons (always >= 4.5:1 on the surface)
+ */
 :root {
-  --bg: oklch(0.985 0.003 75);
-  --surface: oklch(0.958 0.004 75);
-  --surface-2: oklch(0.925 0.005 75);
-  --surface-3: oklch(0.885 0.006 75);
-  --ink: oklch(0.205 0.012 75);
-  --muted: oklch(0.405 0.012 75);
-  --subtle: oklch(0.52 0.009 75);
+  --bg: oklch(0.975 0.004 252);
+  --surface: oklch(0.948 0.006 252);
+  --surface-2: oklch(0.912 0.008 252);
+  --surface-3: oklch(0.868 0.01 252);
+  --surface-sunken: oklch(0.928 0.006 252);
+  --ink: oklch(0.205 0.018 252);
+  --muted: oklch(0.448 0.018 252);
+  --subtle: oklch(0.505 0.016 252);
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
-  --line: oklch(0.865 0.006 75);
-  --ember: oklch(0.515 0.125 70);
-  --ember-hover: oklch(0.47 0.125 70);
-  --ember-active: oklch(0.43 0.12 70);
-  --ember-fg: oklch(0.985 0.003 75);
-  --ember-soft: oklch(0.925 0.035 70);
-  --ready: oklch(0.49 0.115 150);
-  --ready-soft: oklch(0.93 0.025 150);
-  --failed: oklch(0.5 0.155 25);
-  --failed-hover: oklch(0.455 0.15 25);
-  --failed-fg: oklch(0.985 0.003 75);
-  --failed-soft: oklch(0.93 0.035 25);
-  --warning: oklch(0.55 0.12 85);
-  --queued: oklch(0.48 0.025 255);
-  --building: oklch(0.57 0.12 82);
-  --canceled: oklch(0.5 0.012 75);
-  --focus-ring: oklch(0.46 0.13 70);
-  --overlay: oklch(0.08 0.01 260 / 0.58);
-  --control: oklch(0.973 0.003 75);
-  --control-hover: oklch(0.94 0.005 75);
-  --shadow-popover: 0 8px 24px oklch(0.12 0.01 75 / 0.14), 0 1px 2px oklch(0.12 0.01 75 / 0.08);
+  --line: oklch(0.878 0.008 252);
+  --ember: oklch(0.735 0.173 60);
+  --ember-hover: oklch(0.775 0.16 62);
+  --ember-active: oklch(0.695 0.168 58);
+  --ember-fg: oklch(0.17 0.03 60);
+  --ember-ink: oklch(0.53 0.127 58);
+  --ember-soft: oklch(0.938 0.045 66);
+  --lamp-glow: oklch(0.735 0.173 60 / 0.38);
+  --ready: oklch(0.51 0.119 158);
+  --ready-lamp: oklch(0.66 0.16 158);
+  --ready-soft: oklch(0.938 0.04 158);
+  --failed: oklch(0.545 0.175 25);
+  --failed-hover: oklch(0.495 0.175 25);
+  --failed-fg: oklch(0.98 0.008 25);
+  --failed-soft: oklch(0.938 0.04 25);
+  --warning: oklch(0.53 0.112 75);
+  --queued: oklch(0.52 0.156 252);
+  --building: oklch(0.53 0.116 68);
+  --canceled: oklch(0.545 0.012 252);
+  --focus-ring: oklch(0.53 0.127 58);
+  --overlay: oklch(0.14 0.014 252 / 0.55);
+  --control: oklch(0.988 0.003 252);
+  --control-hover: oklch(0.935 0.007 252);
+  --shadow-popover: 0 10px 30px oklch(0.2 0.02 252 / 0.16), 0 1px 2px oklch(0.2 0.02 252 / 0.1);
+  --chassis-wash: radial-gradient(125% 70% at 50% -18%, oklch(1 0 0 / 0.85), transparent 58%);
   --radius: 8px;
   --sidebar: 232px;
   --titlebar: 48px;
@@ -40,34 +53,39 @@
 }
 
 .dark {
-  --bg: oklch(0.145 0.008 255);
-  --surface: oklch(0.178 0.009 255);
-  --surface-2: oklch(0.218 0.01 255);
-  --surface-3: oklch(0.265 0.011 255);
-  --ink: oklch(0.945 0.008 75);
-  --muted: oklch(0.695 0.012 75);
-  --subtle: oklch(0.585 0.01 75);
-  --line: oklch(0.31 0.012 255 / 0.72);
-  --ember: oklch(0.75 0.14 72);
-  --ember-hover: oklch(0.8 0.135 72);
-  --ember-active: oklch(0.7 0.135 72);
-  --ember-fg: oklch(0.16 0.018 72);
-  --ember-soft: oklch(0.245 0.035 72);
-  --ready: oklch(0.73 0.12 150);
-  --ready-soft: oklch(0.23 0.03 150);
-  --failed: oklch(0.71 0.145 25);
-  --failed-hover: oklch(0.77 0.14 25);
-  --failed-fg: oklch(0.16 0.018 25);
-  --failed-soft: oklch(0.24 0.04 25);
-  --warning: oklch(0.76 0.13 85);
-  --queued: oklch(0.69 0.03 255);
-  --building: oklch(0.76 0.13 82);
-  --canceled: oklch(0.65 0.012 75);
-  --focus-ring: oklch(0.78 0.14 72);
-  --overlay: oklch(0.06 0.01 255 / 0.72);
-  --control: oklch(0.168 0.009 255);
-  --control-hover: oklch(0.205 0.01 255);
-  --shadow-popover: 0 8px 24px oklch(0.04 0.01 255 / 0.48), 0 1px 2px oklch(0.04 0.01 255 / 0.4);
+  --bg: oklch(0.135 0.011 252);
+  --surface: oklch(0.171 0.013 252);
+  --surface-2: oklch(0.212 0.015 252);
+  --surface-3: oklch(0.262 0.016 252);
+  --surface-sunken: oklch(0.105 0.01 252);
+  --ink: oklch(0.955 0.006 252);
+  --muted: oklch(0.705 0.014 252);
+  --subtle: oklch(0.605 0.016 252);
+  --line: oklch(0.315 0.014 252 / 0.7);
+  --ember: oklch(0.795 0.148 62);
+  --ember-hover: oklch(0.845 0.13 64);
+  --ember-active: oklch(0.745 0.148 60);
+  --ember-fg: oklch(0.17 0.03 60);
+  --ember-ink: oklch(0.795 0.148 62);
+  --ember-soft: oklch(0.268 0.055 62);
+  --lamp-glow: oklch(0.795 0.148 62 / 0.5);
+  --ready: oklch(0.78 0.145 158);
+  --ready-lamp: oklch(0.8 0.16 158);
+  --ready-soft: oklch(0.255 0.05 158);
+  --failed: oklch(0.705 0.17 22);
+  --failed-hover: oklch(0.765 0.15 22);
+  --failed-fg: oklch(0.16 0.02 22);
+  --failed-soft: oklch(0.262 0.055 22);
+  --warning: oklch(0.82 0.135 78);
+  --queued: oklch(0.72 0.1 252);
+  --building: oklch(0.8 0.142 68);
+  --canceled: oklch(0.64 0.012 252);
+  --focus-ring: oklch(0.795 0.148 62);
+  --overlay: oklch(0.05 0.012 252 / 0.72);
+  --control: oklch(0.158 0.012 252);
+  --control-hover: oklch(0.2 0.014 252);
+  --shadow-popover: 0 12px 34px oklch(0.02 0.01 252 / 0.62), 0 1px 2px oklch(0.02 0.01 252 / 0.5);
+  --chassis-wash: radial-gradient(125% 72% at 50% -16%, oklch(0.82 0.035 252 / 0.1), transparent 60%);
 }
 
 @theme inline {
@@ -75,6 +93,7 @@
   --color-surface: var(--surface);
   --color-surface-2: var(--surface-2);
   --color-surface-3: var(--surface-3);
+  --color-surface-sunken: var(--surface-sunken);
   --color-ink: var(--ink);
   --color-muted: var(--muted);
   --color-subtle: var(--subtle);
@@ -83,14 +102,19 @@
   --color-ember-hover: var(--ember-hover);
   --color-ember-active: var(--ember-active);
   --color-ember-fg: var(--ember-fg);
+  --color-ember-ink: var(--ember-ink);
   --color-ember-soft: var(--ember-soft);
   --color-ready: var(--ready);
+  --color-ready-lamp: var(--ready-lamp);
   --color-ready-soft: var(--ready-soft);
   --color-failed: var(--failed);
   --color-failed-hover: var(--failed-hover);
   --color-failed-fg: var(--failed-fg);
   --color-failed-soft: var(--failed-soft);
   --color-warning: var(--warning);
+  --color-queued: var(--queued);
+  --color-building: var(--building);
+  --color-canceled: var(--canceled);
   --color-control: var(--control);
   --color-control-hover: var(--control-hover);
   --font-sans: var(--font);
@@ -125,6 +149,22 @@ input,
 textarea,
 select {
   font: inherit;
+}
+
+/* Light falling on a panel from above. Carries the "instrument on a night
+   desk" read in dark mode; barely perceptible in light mode, by design. */
+.chassis {
+  position: relative;
+  isolation: isolate;
+}
+
+.chassis::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--chassis-wash);
+  pointer-events: none;
 }
 
 .app-drag {
@@ -208,8 +248,22 @@ button:not(:disabled),
   transition: background-color 140ms var(--ease-out-expo);
 }
 
+/* Order matters: selection must survive hover, and focus must survive both. */
 .data-table tbody tr:hover {
   background: var(--surface);
+}
+
+.data-table tbody tr[aria-selected="true"] {
+  background: color-mix(in oklch, var(--ember-soft) 55%, transparent);
+}
+
+.data-table tbody tr[aria-selected="true"]:hover {
+  background: var(--ember-soft);
+}
+
+.data-table tbody tr:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--focus-ring);
 }
 
 .deployment-inspector {
@@ -273,6 +327,16 @@ button:not(:disabled),
   animation: command-in 180ms var(--ease-out-expo);
 }
 
+.popover-motion[data-state="open"],
+.popover-motion[data-state="delayed-open"],
+.popover-motion[data-state="instant-open"] {
+  animation: popover-in 150ms var(--ease-out-expo);
+}
+
+.popover-motion[data-state="closed"] {
+  animation: popover-out 110ms var(--ease-out-expo);
+}
+
 @keyframes overlay-in {
   from { opacity: 0; }
   to { opacity: 1; }
@@ -286,6 +350,16 @@ button:not(:disabled),
 @keyframes command-in {
   from { opacity: 0; transform: translateX(-50%) translateY(6px) scale(0.99); }
   to { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+}
+
+@keyframes popover-in {
+  from { opacity: 0; transform: scale(0.97); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes popover-out {
+  from { opacity: 1; transform: scale(1); }
+  to { opacity: 0; transform: scale(0.97); }
 }
 
 @media (prefers-reduced-motion: reduce) {

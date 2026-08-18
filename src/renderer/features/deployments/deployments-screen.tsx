@@ -6,7 +6,8 @@ import type { UnifiedDeployment } from "@shared/models";
 import { ProviderMark, StatusBadge } from "@/components/common/status-badge";
 import { EmptyState, ScreenError } from "@/components/common/empty-state";
 import { LogViewer } from "@/components/logs/log-viewer";
-import { InspectorHeader, InspectorPanel, ScreenToolbar } from "@/components/ui/layout";
+import { DetailRow, InspectorHeader, InspectorPanel, ScreenToolbar } from "@/components/ui/layout";
+import { ContextMenuContent, ContextMenuItem as MenuItem } from "@/components/ui/menu";
 import {
   Button,
   Input,
@@ -20,7 +21,6 @@ import {
 import { useConnection, usePrefs } from "@/hooks/use-connection";
 import { useUnifiedDeployments } from "@/hooks/use-data";
 import { copyText, errorMessage, formatDuration, formatWhen, shortSha } from "@/lib/format";
-import { cn } from "@/lib/cn";
 import { useUiStore } from "@/stores/ui-store";
 import { toast } from "sonner";
 
@@ -218,10 +218,7 @@ function DeploymentTable({ items }: { items: UnifiedDeployment[] }) {
                   }}
                   tabIndex={active === index || (active === -1 && index === 0) ? 0 : -1}
                   aria-selected={selected?.id === item.id || undefined}
-                  className={cn(
-                    "cursor-default outline-none focus-visible:bg-surface-2",
-                    selected?.id === item.id && "bg-ember-soft/55",
-                  )}
+                  className="cursor-default outline-none"
                   onFocus={() => setActive(index)}
                   onKeyDown={(event) => {
                     if (event.key === "ArrowDown") {
@@ -255,26 +252,15 @@ function DeploymentTable({ items }: { items: UnifiedDeployment[] }) {
                 </tr>
               </ContextMenu.Trigger>
               <ContextMenu.Portal>
-                <ContextMenu.Content className="z-50 min-w-44 rounded-md bg-bg p-1 shadow-[var(--shadow-popover)]">
+                <ContextMenuContent>
                   <DeploymentActions deployment={item} />
-                </ContextMenu.Content>
+                </ContextMenuContent>
               </ContextMenu.Portal>
             </ContextMenu.Root>
           ))}
         </tbody>
       </table>
     </div>
-  );
-}
-
-function MenuItem({ children, onSelect }: { children: string; onSelect: () => void }) {
-  return (
-    <ContextMenu.Item
-      className="cursor-default rounded px-2 py-1.5 text-[12px] outline-none data-[highlighted]:bg-surface-2"
-      onSelect={onSelect}
-    >
-      {children}
-    </ContextMenu.Item>
   );
 }
 
@@ -326,6 +312,7 @@ export function DeploymentActions({ deployment }: { deployment: UnifiedDeploymen
             Promote
           </MenuItem>
           <MenuItem
+            destructive
             onSelect={() =>
               ask({
                 title: "Delete deployment",
@@ -472,17 +459,19 @@ export function DeploymentDetail({ deployment }: { deployment: UnifiedDeployment
         ))}
       </TabsList>
       <TabsContent value="overview" className="overflow-auto p-3 text-[12px]">
+        <dl className="divide-y divide-line/70">
+          <DetailRow label="Status" value={<StatusBadge state={current.state} />} />
+          <DetailRow label="Environment" value={current.environment} />
+          <DetailRow label="Branch" value={current.branch ?? "—"} />
+          <DetailRow label="Commit" value={shortSha(current.commitSha, prefs.data?.fullCommitSha)} mono />
+          <DetailRow label="Message" value={current.commitMessage ?? "—"} />
+          <DetailRow label="Author" value={current.author ?? "—"} />
+          <DetailRow label="Created" value={formatWhen(current.createdAt, "absolute")} />
+          <DetailRow label="Duration" value={formatDuration(current.durationMs)} />
+          <DetailRow label="URL" value={current.url ?? "—"} />
+        </dl>
         <div className="space-y-2">
-          <Row label="Status" value={<StatusBadge state={current.state} />} />
-          <Row label="Environment" value={current.environment} />
-          <Row label="Branch" value={current.branch ?? "—"} />
-          <Row label="Commit" value={shortSha(current.commitSha, prefs.data?.fullCommitSha)} />
-          <Row label="Message" value={current.commitMessage ?? "—"} />
-          <Row label="Author" value={current.author ?? "—"} />
-          <Row label="Created" value={formatWhen(current.createdAt, "absolute")} />
-          <Row label="Duration" value={formatDuration(current.durationMs)} />
-          <Row label="URL" value={current.url ?? "—"} />
-          <div className="flex flex-wrap gap-2 pt-2">
+          <div className="flex flex-wrap gap-2 pt-3">
             {current.url ? (
               <Button size="sm" onClick={() => void window.deployDeck.shell.openHttps(current.url!)}>
                 Open
@@ -521,6 +510,7 @@ export function DeploymentDetail({ deployment }: { deployment: UnifiedDeployment
           entries={buildLogs.data ?? []}
           loading={buildLogs.isLoading}
           error={buildLogs.isError ? errorMessage(buildLogs.error) : undefined}
+          onRetry={() => void buildLogs.refetch()}
         />
       </TabsContent>
       <TabsContent value="runtime" className="flex min-h-0 flex-1 flex-col">
@@ -530,6 +520,7 @@ export function DeploymentDetail({ deployment }: { deployment: UnifiedDeployment
             loading={runtime.isLoading}
             unavailable={runtimeUnavailable}
             error={runtime.isError ? errorMessage(runtime.error) : undefined}
+            onRetry={() => void runtime.refetch()}
           />
         ) : null}
         {deployment.provider === "cloudflare-workers" ? (
@@ -540,10 +531,10 @@ export function DeploymentDetail({ deployment }: { deployment: UnifiedDeployment
         ) : null}
       </TabsContent>
       <TabsContent value="domains" className="overflow-auto p-3 text-[12px]">
-        <div className="space-y-1 overflow-auto p-3 text-[12px]">
+        <div className="divide-y divide-line/70">
           {(current.aliases.length > 0 ? current.aliases : [current.url]).filter(Boolean).map((alias) => (
-            <div key={alias} className="flex items-center justify-between rounded-md border border-line px-2 py-1.5">
-              <span className="truncate">{alias}</span>
+            <div key={alias} className="flex min-h-9 items-center justify-between gap-2 py-1">
+              <span className="min-w-0 truncate select-text">{alias}</span>
               <Button size="sm" variant="ghost" onClick={() => void window.deployDeck.shell.openHttps(alias!)}>
                 Open
               </Button>
@@ -560,11 +551,3 @@ export function DeploymentDetail({ deployment }: { deployment: UnifiedDeployment
   );
 }
 
-function Row({ label, value }: { label: string; value: React.ReactNode }) {
-  return (
-    <div className="grid grid-cols-[110px_1fr] gap-2">
-      <span className="text-muted">{label}</span>
-      <span>{value}</span>
-    </div>
-  );
-}

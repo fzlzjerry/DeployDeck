@@ -61,9 +61,12 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className={cn("flex h-full", prefs.data?.density === "comfortable" ? "comfortable" : "compact")}>
       <aside className="flex w-[var(--sidebar)] shrink-0 flex-col border-r border-line bg-surface" aria-label="Workspace navigation">
-        <div className="app-drag flex h-12 shrink-0 items-center gap-2 pr-3 pl-[78px]">
-          <Logo className="size-5" />
-          <span className="text-[13px] font-semibold tracking-[-0.015em]">DeployDeck</span>
+        <div className="app-drag shrink-0">
+          <div className="h-12" />
+          <div className="flex items-center gap-2.5 px-3 pb-3">
+            <Logo className="size-5 shrink-0" />
+            <span className="text-[13px] font-semibold tracking-[-0.015em]">DeployDeck</span>
+          </div>
         </div>
         <LayoutGroup>
           <nav className="app-no-drag flex flex-1 flex-col gap-0.5 px-2 py-2" aria-label="Primary">

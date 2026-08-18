@@ -31,7 +31,7 @@ export async function createMainWindow(): Promise<BrowserWindow> {
     minHeight: MIN_HEIGHT,
     title: "DeployDeck",
     titleBarStyle: "hiddenInset",
-    trafficLightPosition: { x: 16, y: 16 },
+    trafficLightPosition: { x: 16, y: 18 },
     backgroundColor: nativeTheme.shouldUseDarkColors ? "#111318" : "#f8f7f5",
     show: !prefs.startMinimized,
     webPreferences: {

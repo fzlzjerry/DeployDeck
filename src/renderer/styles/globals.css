@@ -1,0 +1,300 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  --bg: oklch(0.985 0.003 75);
+  --surface: oklch(0.958 0.004 75);
+  --surface-2: oklch(0.925 0.005 75);
+  --surface-3: oklch(0.885 0.006 75);
+  --ink: oklch(0.205 0.012 75);
+  --muted: oklch(0.405 0.012 75);
+  --subtle: oklch(0.52 0.009 75);
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --line: oklch(0.865 0.006 75);
+  --ember: oklch(0.515 0.125 70);
+  --ember-hover: oklch(0.47 0.125 70);
+  --ember-active: oklch(0.43 0.12 70);
+  --ember-fg: oklch(0.985 0.003 75);
+  --ember-soft: oklch(0.925 0.035 70);
+  --ready: oklch(0.49 0.115 150);
+  --ready-soft: oklch(0.93 0.025 150);
+  --failed: oklch(0.5 0.155 25);
+  --failed-hover: oklch(0.455 0.15 25);
+  --failed-fg: oklch(0.985 0.003 75);
+  --failed-soft: oklch(0.93 0.035 25);
+  --warning: oklch(0.55 0.12 85);
+  --queued: oklch(0.48 0.025 255);
+  --building: oklch(0.57 0.12 82);
+  --canceled: oklch(0.5 0.012 75);
+  --focus-ring: oklch(0.46 0.13 70);
+  --overlay: oklch(0.08 0.01 260 / 0.58);
+  --control: oklch(0.973 0.003 75);
+  --control-hover: oklch(0.94 0.005 75);
+  --shadow-popover: 0 8px 24px oklch(0.12 0.01 75 / 0.14), 0 1px 2px oklch(0.12 0.01 75 / 0.08);
+  --radius: 8px;
+  --sidebar: 232px;
+  --titlebar: 48px;
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", system-ui, sans-serif;
+  --mono: "SF Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+
+.dark {
+  --bg: oklch(0.145 0.008 255);
+  --surface: oklch(0.178 0.009 255);
+  --surface-2: oklch(0.218 0.01 255);
+  --surface-3: oklch(0.265 0.011 255);
+  --ink: oklch(0.945 0.008 75);
+  --muted: oklch(0.695 0.012 75);
+  --subtle: oklch(0.585 0.01 75);
+  --line: oklch(0.31 0.012 255 / 0.72);
+  --ember: oklch(0.75 0.14 72);
+  --ember-hover: oklch(0.8 0.135 72);
+  --ember-active: oklch(0.7 0.135 72);
+  --ember-fg: oklch(0.16 0.018 72);
+  --ember-soft: oklch(0.245 0.035 72);
+  --ready: oklch(0.73 0.12 150);
+  --ready-soft: oklch(0.23 0.03 150);
+  --failed: oklch(0.71 0.145 25);
+  --failed-hover: oklch(0.77 0.14 25);
+  --failed-fg: oklch(0.16 0.018 25);
+  --failed-soft: oklch(0.24 0.04 25);
+  --warning: oklch(0.76 0.13 85);
+  --queued: oklch(0.69 0.03 255);
+  --building: oklch(0.76 0.13 82);
+  --canceled: oklch(0.65 0.012 75);
+  --focus-ring: oklch(0.78 0.14 72);
+  --overlay: oklch(0.06 0.01 255 / 0.72);
+  --control: oklch(0.168 0.009 255);
+  --control-hover: oklch(0.205 0.01 255);
+  --shadow-popover: 0 8px 24px oklch(0.04 0.01 255 / 0.48), 0 1px 2px oklch(0.04 0.01 255 / 0.4);
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-subtle: var(--subtle);
+  --color-line: var(--line);
+  --color-ember: var(--ember);
+  --color-ember-hover: var(--ember-hover);
+  --color-ember-active: var(--ember-active);
+  --color-ember-fg: var(--ember-fg);
+  --color-ember-soft: var(--ember-soft);
+  --color-ready: var(--ready);
+  --color-ready-soft: var(--ready-soft);
+  --color-failed: var(--failed);
+  --color-failed-hover: var(--failed-hover);
+  --color-failed-fg: var(--failed-fg);
+  --color-failed-soft: var(--failed-soft);
+  --color-warning: var(--warning);
+  --color-control: var(--control);
+  --color-control-hover: var(--control-hover);
+  --font-sans: var(--font);
+  --font-mono: var(--mono);
+}
+
+* {
+  border-color: var(--line);
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font);
+  font-size: 13px;
+  line-height: 1.4;
+  letter-spacing: -0.01em;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  user-select: none;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+.app-drag {
+  -webkit-app-region: drag;
+}
+
+.app-no-drag {
+  -webkit-app-region: no-drag;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+.compact {
+  --row-h: 32px;
+}
+
+.comfortable {
+  --row-h: 40px;
+}
+
+::selection {
+  background: color-mix(in oklch, var(--ember) 30%, transparent);
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+button,
+a,
+input,
+select,
+textarea {
+  transition:
+    color 160ms var(--ease-out-expo),
+    background-color 160ms var(--ease-out-expo),
+    border-color 160ms var(--ease-out-expo),
+    opacity 160ms var(--ease-out-expo);
+}
+
+button:not(:disabled),
+[role="button"]:not([aria-disabled="true"]) {
+  cursor: default;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  text-align: left;
+  font-size: 12px;
+}
+
+.data-table thead {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--bg);
+}
+
+.data-table th {
+  height: 34px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.data-table td {
+  height: var(--row-h, 36px);
+  padding: 0 12px;
+  border-bottom: 1px solid color-mix(in oklch, var(--line) 72%, transparent);
+  white-space: nowrap;
+}
+
+.data-table tbody tr {
+  transition: background-color 140ms var(--ease-out-expo);
+}
+
+.data-table tbody tr:hover {
+  background: var(--surface);
+}
+
+.deployment-inspector {
+  width: clamp(360px, 36vw, 420px);
+}
+
+@media (max-width: 1180px) {
+  .deployment-inspector {
+    position: absolute;
+    inset-block: 0;
+    right: 0;
+    z-index: 20;
+    width: min(420px, 58vw);
+    background: var(--bg);
+  }
+}
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--overlay);
+  animation: overlay-in 160ms var(--ease-out-expo);
+}
+
+.modal-content {
+  animation: dialog-in 190ms var(--ease-out-expo);
+  box-shadow: var(--shadow-popover);
+}
+
+.modal-overlay[data-state="closed"],
+.modal-content[data-state="closed"] {
+  animation-direction: reverse;
+}
+
+.dd-toaster [data-sonner-toast] {
+  border: 1px solid var(--line) !important;
+  border-radius: var(--radius) !important;
+  background: var(--surface) !important;
+  color: var(--ink) !important;
+  box-shadow: var(--shadow-popover) !important;
+  font-family: var(--font) !important;
+}
+
+.dd-toaster [data-description] {
+  color: var(--muted) !important;
+}
+
+.command-group [cmdk-group-heading] {
+  padding: 10px 10px 5px;
+  color: var(--subtle);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.command-group + .command-group {
+  margin-top: 4px;
+  border-top: 1px solid color-mix(in oklch, var(--line) 70%, transparent);
+}
+
+.command-content[data-state="open"] {
+  animation: command-in 180ms var(--ease-out-expo);
+}
+
+@keyframes overlay-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes dialog-in {
+  from { opacity: 0; transform: translate(-50%, calc(-50% + 6px)) scale(0.985); }
+  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+@keyframes command-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(6px) scale(0.99); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

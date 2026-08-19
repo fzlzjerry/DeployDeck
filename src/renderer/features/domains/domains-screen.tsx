@@ -1,11 +1,12 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { EmptyState, ScreenError } from "@/components/common/empty-state";
+import { DomainVerification } from "@/components/domains/domain-verification";
 import { ProviderMark } from "@/components/common/status-badge";
 import { ScreenToolbar } from "@/components/ui/layout";
 import { Button, Input, SelectControl, TableSkeleton } from "@/components/ui/primitives";
 import { useConnection } from "@/hooks/use-connection";
-import { useProjects } from "@/hooks/use-data";
+import { useProjects, useZones } from "@/hooks/use-data";
 import { copyText, errorMessage } from "@/lib/format";
 import { useUiStore } from "@/stores/ui-store";
 import { toast } from "sonner";
@@ -17,7 +18,9 @@ export function DomainsScreen() {
   const ask = useUiStore((state) => state.askConfirm);
   const [name, setName] = useState("");
   const [target, setTarget] = useState("");
+  const [zoneId, setZoneId] = useState("");
   const [adding, setAdding] = useState(false);
+  const zones = useZones();
 
   const query = useQuery({
     queryKey: ["domains", projects.data],
@@ -54,6 +57,14 @@ export function DomainsScreen() {
     },
   });
 
+  const workerTarget = target.startsWith("workers:");
+  const firstZoneId = zones.data?.[0]?.id;
+
+  useEffect(() => {
+    if (!workerTarget || zoneId || !firstZoneId) return;
+    setZoneId(firstZoneId);
+  }, [firstZoneId, workerTarget, zoneId]);
+
   if (!connection.data?.vercel.connected && !connection.data?.cloudflare.connected) {
     return <EmptyState title="No domains" body="Connect a provider first." />;
   }
@@ -73,11 +84,17 @@ export function DomainsScreen() {
       value: `pages:${project.accountId}:${project.name}`,
       label: `Pages · ${project.name}`,
     })),
+    ...(projects.data?.workers ?? []).map((worker) => ({
+      value: `workers:${worker.accountId}:${worker.name}`,
+      label: `Workers · ${worker.name}`,
+    })),
   ];
+  const zoneOptions = (zones.data ?? []).map((zone) => ({ value: zone.id, label: zone.name }));
 
   const addDomain = async () => {
     const domainName = name.trim();
     if (!domainName || !target) return;
+    if (workerTarget && !zoneId) return;
 
     setAdding(true);
     try {
@@ -86,6 +103,9 @@ export function DomainsScreen() {
       } else if (target.startsWith("pages:")) {
         const [, accountId, ...projectNameParts] = target.split(":");
         await window.deployDeck.cloudflare.addPagesDomain(accountId, projectNameParts.join(":"), domainName);
+      } else if (target.startsWith("workers:")) {
+        const [, accountId, ...scriptParts] = target.split(":");
+        await window.deployDeck.cloudflare.attachWorkerDomain(accountId, scriptParts.join(":"), domainName, zoneId);
       }
       toast.success("Domain added");
       setName("");
@@ -119,7 +139,23 @@ export function DomainsScreen() {
           options={targetOptions}
           disabled={targetOptions.length === 0}
         />
-        <Button size="sm" loading={adding} disabled={!name.trim() || !target} onClick={() => void addDomain()}>
+        {workerTarget ? (
+          <SelectControl
+            ariaLabel="Cloudflare zone for this Worker hostname"
+            placeholder="Select zone"
+            className="min-w-40 max-w-56"
+            value={zoneId}
+            onValueChange={setZoneId}
+            options={zoneOptions}
+            disabled={zoneOptions.length === 0}
+          />
+        ) : null}
+        <Button
+          size="sm"
+          loading={adding}
+          disabled={!name.trim() || !target || (workerTarget && !zoneId)}
+          onClick={() => void addDomain()}
+        >
           Add domain
         </Button>
       </ScreenToolbar>
@@ -168,7 +204,13 @@ export function DomainsScreen() {
             <tbody>
               {domains.map((domain) => (
                 <tr key={`${domain.provider}:${domain.id}`}>
-                  <td className="font-medium">{domain.name}</td>
+                  <td className="align-top">
+                    <p className="font-medium">{domain.name}</p>
+                    <DomainVerification
+                      domain={domain}
+                      onWritten={() => void client.invalidateQueries({ queryKey: ["dns-records"] })}
+                    />
+                  </td>
                   <td>
                     <ProviderMark provider={domain.provider} />
                   </td>
@@ -192,40 +234,40 @@ export function DomainsScreen() {
                       >
                         Copy
                       </Button>
-                      {domain.provider !== "cloudflare-workers" ? (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="text-failed hover:bg-failed/10 hover:text-failed"
-                          aria-label={`Remove ${domain.name}`}
-                          onClick={() =>
-                            ask({
-                              title: "Remove domain",
-                              body: `${domain.name} will be detached from ${domain.projectName}.`,
-                              actionLabel: "Remove",
-                              onConfirm: async () => {
-                                try {
-                                  if (domain.provider === "vercel") {
-                                    await window.deployDeck.vercel.removeDomain(domain.projectId, domain.name);
-                                  } else {
-                                    await window.deployDeck.cloudflare.removePagesDomain(
-                                      domain.accountId,
-                                      domain.projectName,
-                                      domain.name,
-                                    );
-                                  }
-                                  toast.success("Domain removed");
-                                  await client.invalidateQueries({ queryKey: ["domains"] });
-                                } catch (error) {
-                                  toast.error(errorMessage(error));
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="text-failed hover:bg-failed/10 hover:text-failed"
+                        aria-label={`Remove ${domain.name}`}
+                        onClick={() =>
+                          ask({
+                            title: "Remove domain",
+                            body: `${domain.name} will be detached from ${domain.projectName}.`,
+                            actionLabel: "Remove",
+                            onConfirm: async () => {
+                              try {
+                                if (domain.provider === "vercel") {
+                                  await window.deployDeck.vercel.removeDomain(domain.projectId, domain.name);
+                                } else if (domain.provider === "cloudflare-pages") {
+                                  await window.deployDeck.cloudflare.removePagesDomain(
+                                    domain.accountId,
+                                    domain.projectName,
+                                    domain.name,
+                                  );
+                                } else {
+                                  await window.deployDeck.cloudflare.detachWorkerDomain(domain.accountId, domain.id);
                                 }
-                              },
-                            })
-                          }
-                        >
-                          Remove
-                        </Button>
-                      ) : null}
+                                toast.success("Domain removed");
+                                await client.invalidateQueries({ queryKey: ["domains"] });
+                              } catch (error) {
+                                toast.error(errorMessage(error));
+                              }
+                            },
+                          })
+                        }
+                      >
+                        Remove
+                      </Button>
                     </div>
                   </td>
                 </tr>

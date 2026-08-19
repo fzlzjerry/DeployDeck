@@ -6,14 +6,16 @@ export function useProjects() {
   const connection = useConnection();
   const vercel = connection.data?.vercel.connected;
   const cloudflare = connection.data?.cloudflare.connected;
+  const pages = Boolean(cloudflare) && (connection.data?.cloudflare.capabilities?.pages ?? true);
+  const workers = Boolean(cloudflare) && (connection.data?.cloudflare.capabilities?.workers ?? true);
   return useQuery({
-    queryKey: ["projects", vercel, cloudflare, connection.data?.vercel.activeTeamId, connection.data?.cloudflare.activeAccountId],
+    queryKey: ["projects", vercel, pages, workers, connection.data?.vercel.activeTeamId, connection.data?.cloudflare.activeAccountId],
     enabled: Boolean(vercel || cloudflare),
     queryFn: async () => {
       const [v, p, w] = await Promise.all([
         vercel ? window.deployDeck.vercel.listProjects() : [],
-        cloudflare ? window.deployDeck.cloudflare.listPagesProjects() : [],
-        cloudflare ? window.deployDeck.cloudflare.listWorkers() : [],
+        pages ? window.deployDeck.cloudflare.listPagesProjects() : [],
+        workers ? window.deployDeck.cloudflare.listWorkers() : [],
       ]);
       return { vercel: v, pages: p, workers: w };
     },
@@ -23,9 +25,10 @@ export function useProjects() {
 export function useUnifiedDeployments(filters: DeploymentFilters) {
   const connection = useConnection();
   const prefs = usePrefs();
+  const cloudflare = connection.data?.cloudflare;
   const vercelOn = Boolean(connection.data?.vercel.connected) && (filters.provider === "all" || filters.provider === "vercel");
-  const pagesOn = Boolean(connection.data?.cloudflare.connected) && (filters.provider === "all" || filters.provider === "cloudflare-pages");
-  const workersOn = Boolean(connection.data?.cloudflare.connected) && (filters.provider === "all" || filters.provider === "cloudflare-workers");
+  const pagesOn = Boolean(cloudflare?.connected && (cloudflare.capabilities?.pages ?? true)) && (filters.provider === "all" || filters.provider === "cloudflare-pages");
+  const workersOn = Boolean(cloudflare?.connected && (cloudflare.capabilities?.workers ?? true)) && (filters.provider === "all" || filters.provider === "cloudflare-workers");
   const interval = prefs.data?.refreshEnabled
     ? prefs.data.activeRefreshIntervalMs
     : false;
@@ -111,9 +114,12 @@ export function useActivity() {
 
 export function useZones() {
   const connection = useConnection();
+  const zonesAvailable = Boolean(
+    connection.data?.cloudflare.connected && (connection.data.cloudflare.capabilities?.zones ?? true),
+  );
   return useQuery({
     queryKey: ["zones", connection.data?.cloudflare.activeAccountId],
-    enabled: Boolean(connection.data?.cloudflare.connected),
+    enabled: zonesAvailable,
     queryFn: () => window.deployDeck.cloudflare.listZones(),
   });
 }

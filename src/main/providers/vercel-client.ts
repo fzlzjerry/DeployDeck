@@ -31,6 +31,7 @@ let cached: { token: string; client: Vercel } | null = null;
 async function client(): Promise<Vercel> {
   const token = await readToken("vercel");
   if (!token) {
+    cached = null;
     throw new Error("Vercel is not connected.");
   }
   if (!cached || cached.token !== token) {
@@ -293,6 +294,18 @@ export async function promoteVercelDeployment(id: string, projectId: string): Pr
     const vercel = await client();
     const scope = await loadVercelScope();
     await vercel.projects.requestPromote({
+      projectId,
+      deploymentId: id,
+      teamId: scope.teamId,
+    });
+  });
+}
+
+export async function rollbackVercelDeployment(id: string, projectId: string): Promise<void> {
+  await wrapProvider("vercel", async () => {
+    const vercel = await client();
+    const scope = await loadVercelScope();
+    await vercel.projects.requestRollback({
       projectId,
       deploymentId: id,
       teamId: scope.teamId,

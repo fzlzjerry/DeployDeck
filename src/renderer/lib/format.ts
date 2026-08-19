@@ -36,9 +36,17 @@ export function stateLabel(state: DeploymentState): string {
 
 export function errorMessage(error: unknown): string {
   if (error && typeof error === "object" && "message" in error && typeof error.message === "string") {
-    return error.message;
+    return unwrapIpcError(error.message);
   }
+  if (typeof error === "string") return unwrapIpcError(error);
   return "The request failed.";
+}
+
+function unwrapIpcError(message: string): string {
+  const match = message.match(/^Error invoking remote method '[^']+': ([\s\S]+)$/);
+  const inner = match?.[1] ?? message;
+  if (inner === "[object Object]") return "The request failed.";
+  return inner;
 }
 
 export async function copyText(value: string): Promise<void> {

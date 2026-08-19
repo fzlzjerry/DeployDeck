@@ -42,7 +42,7 @@ function stepCopy(id: string, liveCount: number): { title: string; body: string 
   if (id === "channels") {
     return {
       title: "Bring a channel online",
-      body: "One provider is enough to open the workspace. A token is verified before it is saved, then encrypted by macOS.",
+      body: "One provider is enough to open the workspace. Sign in with the browser, or paste a token. Sessions are encrypted by macOS.",
     };
   }
   if (id === "console") {
@@ -240,7 +240,7 @@ export function SetupGuide({ onFinished }: { onFinished: () => void }) {
             {flow.isFirst ? (
               <p className={cn("flex items-center gap-2 text-[12px]", ready ? "text-ready" : "text-muted")}>
                 <Lamp state={ready ? "live" : "off"} />
-                {ready ? "Channel live" : "Paste a token to continue"}
+                {ready ? "Channel live" : "Connect a provider to continue"}
               </p>
             ) : (
               <Button variant="ghost" size="sm" className="text-muted" onClick={flow.back}>
@@ -278,7 +278,7 @@ function ChannelSummary({ provider }: { provider: ProviderConnectionState }) {
       <ProviderGlyph brand={provider.id} className={cn("size-[18px]", live ? "text-ink" : "text-subtle")} />
       <div className="min-w-0 flex-1">
         <p className={cn("text-[13px] font-medium", live ? "text-ink" : "text-subtle")}>{provider.name}</p>
-        {live ? <p className="truncate text-[12px] text-muted">{provider.account ?? "Token verified"}</p> : null}
+        {live ? <p className="truncate text-[12px] text-muted">{provider.account ?? "Connected"}</p> : null}
       </div>
       <Lamp state={live ? "live" : "off"} />
     </div>
@@ -317,7 +317,7 @@ export function CompactConnect({ onReplaySetup }: { onReplaySetup: () => void })
           </h1>
           <p className="mt-2 text-[13px] leading-5 text-pretty text-muted">
             {faulted
-              ? "That token was not accepted. Try another one to bring the deck back online."
+              ? "That sign-in was not accepted. Try again, or paste a token to bring the deck back online."
               : "Bring either provider back online to load projects and deployments."}
           </p>
         </header>

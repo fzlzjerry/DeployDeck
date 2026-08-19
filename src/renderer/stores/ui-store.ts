@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { DeploymentFilters, Screen, UnifiedDeployment } from "@shared/models";
+import type { DeploymentFilters, EnvironmentFocus, ProjectFocus, Screen, UnifiedDeployment } from "@shared/models";
 
 interface UiState {
   screen: Screen;
@@ -8,6 +8,9 @@ interface UiState {
   filters: DeploymentFilters;
   selected?: UnifiedDeployment;
   inspectorOpen: boolean;
+  projectFocus?: ProjectFocus;
+  zoneFocus?: string;
+  environmentFocus?: EnvironmentFocus;
   confirm?: {
     title: string;
     body: string;
@@ -20,6 +23,10 @@ interface UiState {
   focusSearch: () => void;
   setFilters: (patch: Partial<DeploymentFilters>) => void;
   openDeployment: (deployment: UnifiedDeployment) => void;
+  openProject: (focus: ProjectFocus) => void;
+  openZone: (zoneId: string) => void;
+  openEnvironment: (focus: EnvironmentFocus) => void;
+  openSelected: () => void;
   closeInspector: () => void;
   askConfirm: (confirm: NonNullable<UiState["confirm"]>) => void;
   closeConfirm: () => void;
@@ -36,6 +43,16 @@ export const useUiStore = create<UiState>((set) => ({
   focusSearch: () => set((state) => ({ searchNonce: state.searchNonce + 1 })),
   setFilters: (patch) => set((state) => ({ filters: { ...state.filters, ...patch } })),
   openDeployment: (selected) => set({ selected, inspectorOpen: true, screen: "deployments" }),
+  openProject: (projectFocus) => set({ projectFocus, screen: "projects" }),
+  openZone: (zoneFocus) => set({ zoneFocus, screen: "dns" }),
+  openEnvironment: (environmentFocus) => set({ environmentFocus, screen: "environments" }),
+  openSelected: () =>
+    set((state) => {
+      if (state.selected) return { screen: "deployments", inspectorOpen: true };
+      if (state.projectFocus) return { screen: "projects" };
+      if (state.zoneFocus) return { screen: "dns" };
+      return state;
+    }),
   closeInspector: () => set({ inspectorOpen: false }),
   askConfirm: (confirm) => set({ confirm }),
   closeConfirm: () => set({ confirm: undefined }),

@@ -12,6 +12,7 @@ import type {
   UnifiedDomain,
   UnifiedProject,
   WorkerDeployment,
+  WorkerRoute,
   WorkerScript,
   WorkerVersion,
 } from "@shared/models";
@@ -57,6 +58,7 @@ export function setCloudflareWindow(window: BrowserWindow | null): void {
 async function client(): Promise<Cloudflare> {
   const token = await readToken("cloudflare");
   if (!token) {
+    cached = null;
     throw new Error("Cloudflare is not connected.");
   }
   if (!cached || cached.token !== token) {
@@ -491,23 +493,49 @@ export async function restoreWorkerDeployment(
   await deployWorkerVersion(accountId, scriptName, primary.versionId, primary.percentage, secondary?.versionId);
 }
 
-export async function listWorkerRoutes(accountId: string, scriptName?: string) {
+export async function listWorkerRoutes(accountId: string, scriptName?: string): Promise<WorkerRoute[]> {
   return wrapProvider("cloudflare", async () => {
     const cf = await client();
     const zones = await collect(cf.zones.list({ account: { id: accountId } } as never));
-    const rows: Array<{ id?: string; pattern?: string; script?: string; zone_name?: string }> = [];
+    const rows: WorkerRoute[] = [];
     for (const zone of zones) {
       const zoneRoutes = await collect(cf.workers.routes.list({ zone_id: zone.id })).catch(() => []);
-      rows.push(...zoneRoutes.map((route) => ({ ...route, zone_name: zone.name })));
+      for (const route of zoneRoutes) {
+        const script = String((route as { script?: string }).script ?? "");
+        if (scriptName && script !== scriptName) continue;
+        rows.push({
+          id: String((route as { id?: string }).id ?? ""),
+          pattern: String((route as { pattern?: string }).pattern ?? ""),
+          script,
+          zoneId: zone.id,
+          zoneName: zone.name,
+        });
+      }
     }
-    return rows
-      .filter((route) => !scriptName || (route as { script?: string }).script === scriptName)
-      .map((route) => ({
-        id: String((route as { id?: string }).id ?? ""),
-        pattern: String((route as { pattern?: string }).pattern ?? ""),
-        script: String((route as { script?: string }).script ?? ""),
-        zoneName: (route as { zone_name?: string }).zone_name,
-      }));
+    return rows;
+  });
+}
+
+export async function createWorkerRoute(
+  _accountId: string,
+  scriptName: string,
+  zoneId: string,
+  pattern: string,
+): Promise<void> {
+  await wrapProvider("cloudflare", async () => {
+    const cf = await client();
+    await cf.workers.routes.create({
+      zone_id: zoneId,
+      pattern,
+      script: scriptName,
+    });
+  });
+}
+
+export async function deleteWorkerRoute(zoneId: string, routeId: string): Promise<void> {
+  await wrapProvider("cloudflare", async () => {
+    const cf = await client();
+    await cf.workers.routes.delete(routeId, { zone_id: zoneId });
   });
 }
 
@@ -529,6 +557,7 @@ export async function listWorkerDomains(accountId: string, scriptName?: string):
         name: String((domain as { hostname?: string }).hostname ?? ""),
         status: String((domain as { zone_name?: string }).zone_name ?? "attached"),
         verified: true,
+        verificationRecords: [],
       }));
   });
 }

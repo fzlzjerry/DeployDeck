@@ -1,3 +1,5 @@
+import type { CloudflareCapabilities } from "./oauth";
+
 export type Provider = "vercel" | "cloudflare-pages" | "cloudflare-workers";
 
 export type DeploymentState =
@@ -83,6 +85,13 @@ export interface DeploymentLogEntry {
   raw?: unknown;
 }
 
+export interface DomainVerificationRecord {
+  type: DnsRecordType;
+  name: string;
+  value: string;
+  reason?: string;
+}
+
 export interface UnifiedDomain {
   id: string;
   provider: Provider;
@@ -98,16 +107,7 @@ export interface UnifiedDomain {
   apex?: boolean;
   redirectTo?: string;
   createdAt?: string;
-}
-
-export interface DnsZone {
-  id: string;
-  accountId: string;
-  accountName: string;
-  name: string;
-  status: string;
-  planName?: string;
-  nameServers: string[];
+  verificationRecords: DomainVerificationRecord[];
 }
 
 export type DnsRecordType =
@@ -119,6 +119,16 @@ export type DnsRecordType =
   | "CAA"
   | "SRV"
   | "NS";
+
+export interface DnsZone {
+  id: string;
+  accountId: string;
+  accountName: string;
+  name: string;
+  status: string;
+  planName?: string;
+  nameServers: string[];
+}
 
 export interface DnsRecord {
   id: string;
@@ -196,6 +206,23 @@ export interface WorkerDeployment {
   }>;
 }
 
+export interface WorkerRoute {
+  id: string;
+  pattern: string;
+  script: string;
+  zoneId: string;
+  zoneName?: string;
+}
+
+export type ProjectFocus =
+  | { kind: "project"; provider: Provider; id: string }
+  | { kind: "worker"; accountId: string; name: string };
+
+export interface EnvironmentFocus {
+  provider: "vercel" | "cloudflare-pages" | "cloudflare-workers";
+  targetId: string;
+}
+
 export type ActivityKind =
   | "deployment-retried"
   | "deployment-rolled-back"
@@ -228,6 +255,8 @@ export interface LocalActivityEntry {
 export interface ConnectionStatus {
   vercel: {
     connected: boolean;
+    authKind?: "oauth" | "pat";
+    grantedScopes?: string[];
     userName?: string;
     userEmail?: string;
     userId?: string;
@@ -236,8 +265,15 @@ export interface ConnectionStatus {
   };
   cloudflare: {
     connected: boolean;
+    authKind?: "oauth" | "pat";
+    grantedScopes?: string[];
+    capabilities: CloudflareCapabilities;
     accounts: Array<{ id: string; name: string }>;
     activeAccountId: string | null;
+  };
+  oauth: {
+    vercel: boolean;
+    cloudflare: boolean;
   };
 }
 

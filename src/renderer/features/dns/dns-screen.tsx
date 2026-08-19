@@ -1,8 +1,8 @@
 import type { DnsRecord, DnsRecordType } from "@shared/models";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { Copy, Pencil, Trash2 } from "lucide-react";
-import { useId, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useId, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { toast } from "sonner";
 import { EmptyState, ScreenError } from "@/components/common/empty-state";
 import { InspectorHeader, InspectorPanel, ScreenToolbar } from "@/components/ui/layout";
@@ -44,6 +44,7 @@ export function DnsScreen() {
   const connection = useConnection();
   const zones = useZones();
   const [zoneId, setZoneId] = useState<string>();
+  const zoneFocus = useUiStore((state) => state.zoneFocus);
   const [zoneSearch, setZoneSearch] = useState("");
   const [search, setSearch] = useState("");
   const [type, setType] = useState<DnsRecordType | "all">("all");
@@ -52,7 +53,18 @@ export function DnsScreen() {
   const [editing, setEditing] = useState<Partial<DnsRecord> | null>(null);
   const client = useQueryClient();
   const ask = useUiStore((state) => state.askConfirm);
-  const selectedZone = (zones.data ?? []).find((zone) => zone.id === zoneId) ?? zones.data?.[0];
+  const cloudflare = connection.data?.cloudflare;
+  const dnsAvailable = Boolean(
+    cloudflare?.connected &&
+      (cloudflare.capabilities?.zones ?? true) &&
+      (cloudflare.capabilities?.dns ?? true),
+  );
+  const selectedZone =
+    (zones.data ?? []).find((zone) => zone.id === (zoneId ?? zoneFocus)) ?? zones.data?.[0];
+
+  useEffect(() => {
+    if (zoneFocus) setZoneId(zoneFocus);
+  }, [zoneFocus]);
 
   const visibleZones = useMemo(() => {
     const query = zoneSearch.trim().toLocaleLowerCase();
@@ -62,19 +74,22 @@ export function DnsScreen() {
     );
   }, [zoneSearch, zones.data]);
 
-  const records = useQuery({
+  const records = useInfiniteQuery({
     queryKey: ["dns-records", selectedZone?.id, search, type, proxied],
     enabled: Boolean(selectedZone),
-    queryFn: () =>
+    initialPageParam: 1,
+    queryFn: ({ pageParam }) =>
       window.deployDeck.cloudflare.listDnsRecords(selectedZone!.id, {
         search,
         type,
         proxied: proxied === "all" ? undefined : proxied === "yes",
+        page: pageParam,
       }),
+    getNextPageParam: (last) => (last.nextCursor ? Number(last.nextCursor) : undefined),
   });
 
   const items = useMemo(() => {
-    const rows = [...(records.data?.items ?? [])];
+    const rows = [...(records.data?.pages.flatMap((page) => page.items) ?? [])];
     rows.sort((a, b) => {
       if (sort === "ttl") return a.ttl - b.ttl;
       return String(a[sort]).localeCompare(String(b[sort]), undefined, { sensitivity: "base" });
@@ -85,6 +100,7 @@ export function DnsScreen() {
   const selectZone = (nextZoneId: string) => {
     setZoneId(nextZoneId);
     setEditing(null);
+    useUiStore.getState().openZone(nextZoneId);
   };
 
   const resetRecordFilters = () => {
@@ -114,6 +130,15 @@ export function DnsScreen() {
       <EmptyState
         title="Connect Cloudflare"
         body="DNS records require a Cloudflare token with Zone and DNS permissions."
+      />
+    );
+  }
+
+  if (!dnsAvailable) {
+    return (
+      <EmptyState
+        title="Cloudflare DNS permission is missing"
+        body="Reconnect Cloudflare with Zone Read and DNS Read or Write scopes."
       />
     );
   }
@@ -206,11 +231,12 @@ export function DnsScreen() {
                 className="w-36"
               />
               <div className="ml-auto flex items-center gap-3">
-                {records.isFetching && !records.isLoading ? (
+                {records.isFetching && !records.isLoading && !records.isFetchingNextPage ? (
                   <span className="text-[11px] text-muted">Updating…</span>
                 ) : (
                   <span className="text-[11px] text-muted">
                     {items.length} {items.length === 1 ? "record" : "records"}
+                    {records.hasNextPage ? "+" : ""}
                   </span>
                 )}
                 <Button
@@ -246,13 +272,27 @@ export function DnsScreen() {
                 }
               />
             ) : (
-              <DnsRecordTable
-                zoneName={selectedZone.name}
-                records={items}
-                editingId={editing?.id}
-                onEdit={setEditing}
-                onDelete={requestDelete}
-              />
+              <>
+                <DnsRecordTable
+                  zoneName={selectedZone.name}
+                  records={items}
+                  editingId={editing?.id}
+                  onEdit={setEditing}
+                  onDelete={requestDelete}
+                />
+                {records.hasNextPage ? (
+                  <div className="border-t border-line p-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      loading={records.isFetchingNextPage}
+                      onClick={() => void records.fetchNextPage()}
+                    >
+                      Load more
+                    </Button>
+                  </div>
+                ) : null}
+              </>
             )}
           </>
         ) : zones.isError ? (

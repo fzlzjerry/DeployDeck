@@ -10,6 +10,8 @@ const api: DeployDeckApi = {
     status: () => invoke("connections:status"),
     connectVercel: (token) => invoke("connections:connectVercel", token),
     connectCloudflare: (token) => invoke("connections:connectCloudflare", token),
+    startOAuth: (provider) => invoke("connections:startOAuth", provider),
+    cancelOAuth: () => invoke("connections:cancelOAuth"),
     disconnect: (provider) => invoke("connections:disconnect", provider),
     setVercelTeam: (teamId) => invoke("connections:setVercelTeam", teamId),
     setCloudflareAccount: (accountId) => invoke("connections:setCloudflareAccount", accountId),
@@ -24,6 +26,7 @@ const api: DeployDeckApi = {
     cancelDeployment: (id) => invoke("vercel:cancelDeployment", id),
     redeploy: (id, target) => invoke("vercel:redeploy", id, target),
     promote: (id, projectId) => invoke("vercel:promote", id, projectId),
+    rollback: (id, projectId) => invoke("vercel:rollback", id, projectId),
     deleteDeployment: (id) => invoke("vercel:deleteDeployment", id),
     listDomains: (projectId) => invoke("vercel:domains", projectId),
     addDomain: (projectId, name) => invoke("vercel:addDomain", projectId, name),
@@ -69,6 +72,9 @@ const api: DeployDeckApi = {
     restoreWorkerDeployment: (accountId, scriptName, deploymentId) =>
       invoke("cloudflare:restoreWorkerDeployment", accountId, scriptName, deploymentId),
     listWorkerRoutes: (accountId, scriptName) => invoke("cloudflare:workerRoutes", accountId, scriptName),
+    createWorkerRoute: (accountId, scriptName, zoneId, pattern) =>
+      invoke("cloudflare:createWorkerRoute", accountId, scriptName, zoneId, pattern),
+    deleteWorkerRoute: (zoneId, routeId) => invoke("cloudflare:deleteWorkerRoute", zoneId, routeId),
     listWorkerDomains: (accountId, scriptName) => invoke("cloudflare:workerDomains", accountId, scriptName),
     attachWorkerDomain: (accountId, scriptName, hostname, zoneId) =>
       invoke("cloudflare:attachWorkerDomain", accountId, scriptName, hostname, zoneId),

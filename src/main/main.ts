@@ -7,6 +7,7 @@ import { startPoller } from "./poller";
 import { setupTray } from "./tray";
 import { createMainWindow, getMainWindow, sendToRenderer } from "./window";
 import { setCloudflareWindow } from "./providers/cloudflare-client";
+import { cancelOAuthSession } from "./oauth/session";
 
 if (started) {
   app.quit();
@@ -75,5 +76,6 @@ app.on("activate", () => {
 });
 
 app.on("before-quit", () => {
+  cancelOAuthSession();
   setCloudflareWindow(null);
 });

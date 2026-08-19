@@ -1,16 +1,22 @@
 import { BrowserWindow, app, dialog, ipcMain, shell } from "electron";
-import { toAppError } from "@shared/errors";
+import { DeployDeckError, toAppError } from "@shared/errors";
 import type { AppPreferences, ConnectionStatus } from "@shared/models";
 import { addActivity, clearActivity, listActivity } from "./activity";
-import { clearToken, hasToken, saveToken } from "./credentials";
+import { cloudflareCapabilities, tokensToCredential, type OAuthProvider } from "@shared/oauth";
+import { clearToken, hasToken, readCredential, saveCredential, saveToken } from "./credentials";
+import { isOAuthConfigured } from "./oauth/config";
+import { OAuthCancelledError, cancelOAuthSession, startOAuthSession } from "./oauth/session";
+import { revokeOAuthCredential } from "./oauth/tokens";
 import {
   addPagesDomain,
   attachWorkerDomain,
   connectCloudflare,
   createDnsRecord,
+  createWorkerRoute,
   deleteDnsRecord,
   deletePagesDeployment,
   deletePagesEnv,
+  deleteWorkerRoute,
   deleteWorkerSecret,
   deleteWorkerVar,
   deployWorkerVersion,
@@ -65,6 +71,7 @@ import {
   loadVercelScope,
   promoteVercelDeployment,
   redeployVercelDeployment,
+  rollbackVercelDeployment,
   removeVercelDomain,
   resetVercelClient,
   revealVercelEnvVar,
@@ -74,53 +81,118 @@ import {
 import { getPreferences, getWindowBounds, setPreferences } from "./preferences";
 import { sendToRenderer } from "./window";
 
+const CONNECTION_CHECK_TIMEOUT_MS = 4_000;
+
 function handle(channel: string, fn: (...args: unknown[]) => Promise<unknown>): void {
   ipcMain.handle(channel, async (_event, ...args: unknown[]) => {
     try {
       return await fn(...args);
     } catch (error) {
-      const appError = toAppError(error);
-      throw appError;
+      if (error instanceof DeployDeckError) throw error;
+      throw new DeployDeckError(toAppError(error));
     }
   });
 }
 
 async function connectionStatus(): Promise<ConnectionStatus> {
   const prefs = await getPreferences();
-  const vercelConnected = await hasToken("vercel");
-  const cloudflareConnected = await hasToken("cloudflare");
+  const [vercelCredential, cloudflareCredential] = await Promise.all([
+    readCredential("vercel"),
+    readCredential("cloudflare"),
+  ]);
+  const vercelConnected = Boolean(vercelCredential);
+  const cloudflareConnected = Boolean(cloudflareCredential);
   const status: ConnectionStatus = {
     vercel: {
       connected: vercelConnected,
+      authKind: vercelCredential?.kind,
+      grantedScopes: vercelCredential?.scopes,
       teams: [],
       activeTeamId: prefs.vercelTeamId,
     },
     cloudflare: {
       connected: cloudflareConnected,
+      authKind: cloudflareCredential?.kind,
+      grantedScopes: cloudflareCredential?.scopes,
+      capabilities: cloudflareCapabilities(cloudflareCredential),
       accounts: [],
       activeAccountId: prefs.cloudflareAccountId,
     },
+    oauth: {
+      vercel: isOAuthConfigured("vercel"),
+      cloudflare: isOAuthConfigured("cloudflare"),
+    },
   };
-  if (vercelConnected) {
-    try {
-      const scope = await loadVercelScope();
-      status.vercel.userName = scope.userName;
-      status.vercel.userEmail = scope.userEmail;
-      status.vercel.userId = scope.userId;
-      status.vercel.teams = scope.teams;
-      status.vercel.activeTeamId = prefs.vercelTeamId;
-    } catch {
-      status.vercel.connected = true;
-    }
-  }
-  if (cloudflareConnected) {
-    try {
-      status.cloudflare.accounts = await listCloudflareAccounts();
-    } catch {
-      status.cloudflare.connected = true;
-    }
-  }
+  await Promise.all([
+    vercelConnected
+      ? withTimeout(loadVercelScope(), CONNECTION_CHECK_TIMEOUT_MS)
+          .then((scope) => {
+            status.vercel.userName = scope.userName;
+            status.vercel.userEmail = scope.userEmail;
+            status.vercel.userId = scope.userId;
+            status.vercel.teams = scope.teams;
+            status.vercel.activeTeamId = prefs.vercelTeamId;
+          })
+          .catch(async () => {
+            // A terminal refresh error clears the credential. Transient
+            // provider failures keep the saved connection so an offline launch
+            // does not sign the user out.
+            status.vercel.connected = await hasToken("vercel");
+          })
+      : Promise.resolve(),
+    cloudflareConnected
+      ? withTimeout(listCloudflareAccounts(), CONNECTION_CHECK_TIMEOUT_MS)
+          .then((accounts) => {
+            status.cloudflare.accounts = accounts;
+          })
+          .catch(async () => {
+            status.cloudflare.connected = await hasToken("cloudflare");
+          })
+      : Promise.resolve(),
+  ]);
   return status;
+}
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error("Provider connection check timed out.")), timeoutMs);
+    timer.unref();
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
+}
+
+function asOAuthProvider(value: unknown): OAuthProvider {
+  if (value === "vercel" || value === "cloudflare") return value;
+  throw new Error("Unknown provider.");
+}
+
+async function finishOAuthConnect(provider: OAuthProvider, accessToken: string): Promise<void> {
+  if (provider === "vercel") {
+    const vercel = await connectVercel(accessToken);
+    await addActivity({
+      kind: "connection-updated",
+      provider: "vercel",
+      title: "Connected Vercel",
+      detail: vercel.userName,
+    });
+    return;
+  }
+  const accounts = await connectCloudflare(accessToken);
+  await addActivity({
+    kind: "connection-updated",
+    provider: "cloudflare",
+    title: "Connected Cloudflare",
+    detail: `${accounts.length} accounts`,
+  });
 }
 
 export function registerIpc(window: BrowserWindow): void {
@@ -151,18 +223,50 @@ export function registerIpc(window: BrowserWindow): void {
     sendToRenderer("host:connection-changed");
     return connectionStatus();
   });
+  handle("connections:startOAuth", async (provider) => {
+    const id = asOAuthProvider(provider);
+    try {
+      const tokens = await startOAuthSession(id);
+      await finishOAuthConnect(id, tokens.accessToken);
+      await saveCredential(id, tokensToCredential(tokens));
+    } catch (error) {
+      if (id === "vercel") resetVercelClient();
+      else resetCloudflareClient();
+      if (error instanceof OAuthCancelledError) {
+        return null;
+      }
+      const message = error instanceof Error ? error.message : "Sign-in failed.";
+      if (/denied|permission|forbidden|unauthorized|not authenticated|scope/i.test(message)) {
+        throw new Error(
+          `${message} If API access was not granted, paste a token instead.`,
+        );
+      }
+      throw error;
+    }
+    sendToRenderer("host:connection-changed");
+    return connectionStatus();
+  });
+  handle("connections:cancelOAuth", async () => {
+    cancelOAuthSession();
+  });
   handle("connections:disconnect", async (provider) => {
-    if (provider === "vercel") {
+    const id = asOAuthProvider(provider);
+    cancelOAuthSession();
+    const credential = await readCredential(id);
+    if (id === "vercel") {
       resetVercelClient();
       await clearToken("vercel");
     } else {
       resetCloudflareClient();
       await clearToken("cloudflare");
     }
+    if (credential?.kind === "oauth") {
+      await revokeOAuthCredential(id, credential);
+    }
     await addActivity({
       kind: "connection-updated",
-      provider: provider === "vercel" ? "vercel" : "cloudflare",
-      title: provider === "vercel" ? "Disconnected Vercel" : "Disconnected Cloudflare",
+      provider: id,
+      title: id === "vercel" ? "Disconnected Vercel" : "Disconnected Cloudflare",
     });
     sendToRenderer("host:connection-changed");
     return connectionStatus();
@@ -203,6 +307,15 @@ export function registerIpc(window: BrowserWindow): void {
     await promoteVercelDeployment(String(id), String(projectId));
     await addActivity({ kind: "deployment-promoted", provider: "vercel", title: "Promoted deployment to production", targetId: String(id) });
   });
+  handle("vercel:rollback", async (id, projectId) => {
+    await rollbackVercelDeployment(String(id), String(projectId));
+    await addActivity({
+      kind: "deployment-rolled-back",
+      provider: "vercel",
+      title: "Rolled back Vercel production",
+      targetId: String(id),
+    });
+  });
   handle("vercel:deleteDeployment", async (id) => {
     await deleteVercelDeployment(String(id));
     await addActivity({ kind: "deployment-deleted", provider: "vercel", title: "Deleted Vercel deployment", targetId: String(id) });
@@ -221,15 +334,15 @@ export function registerIpc(window: BrowserWindow): void {
   handle("vercel:envVars", (projectId) => listVercelEnvVars(String(projectId)));
   handle("vercel:createEnvVar", async (projectId, input) => {
     await createVercelEnvVar(String(projectId), input as never);
-    await addActivity({ kind: "env-variable-changed", provider: "vercel", title: "Created environment variable", projectName: String(projectId) });
+    await addActivity({ kind: "env-variable-changed", provider: "vercel", title: "Created environment variable", projectName: String(projectId), targetId: String(projectId) });
   });
   handle("vercel:updateEnvVar", async (projectId, envId, input) => {
     await updateVercelEnvVar(String(projectId), String(envId), input as never);
-    await addActivity({ kind: "env-variable-changed", provider: "vercel", title: "Updated environment variable", projectName: String(projectId) });
+    await addActivity({ kind: "env-variable-changed", provider: "vercel", title: "Updated environment variable", projectName: String(projectId), targetId: String(projectId) });
   });
   handle("vercel:deleteEnvVar", async (projectId, envId) => {
     await deleteVercelEnvVar(String(projectId), String(envId));
-    await addActivity({ kind: "env-variable-deleted", provider: "vercel", title: "Deleted environment variable", projectName: String(projectId) });
+    await addActivity({ kind: "env-variable-deleted", provider: "vercel", title: "Deleted environment variable", projectName: String(projectId), targetId: String(projectId) });
   });
   handle("vercel:revealEnvVar", (projectId, envId) => revealVercelEnvVar(String(projectId), String(envId)));
 
@@ -289,7 +402,12 @@ export function registerIpc(window: BrowserWindow): void {
   );
   handle("cloudflare:upsertPagesEnv", async (input) => {
     await upsertPagesEnv(input as never);
-    await addActivity({ kind: "env-variable-changed", provider: "cloudflare-pages", title: "Updated Pages variable" });
+    await addActivity({
+      kind: "env-variable-changed",
+      provider: "cloudflare-pages",
+      title: "Updated Pages variable",
+      targetId: `${(input as { accountId?: string; projectName?: string }).accountId}::${(input as { projectName?: string }).projectName}`,
+    });
   });
   handle("cloudflare:deletePagesEnv", async (accountId, projectName, environment, name) => {
     await deletePagesEnv(String(accountId), String(projectName), environment as "production" | "preview", String(name));
@@ -314,6 +432,7 @@ export function registerIpc(window: BrowserWindow): void {
       provider: "cloudflare-workers",
       title: "Deployed Worker version",
       projectName: String(scriptName),
+      targetId: String(accountId),
     });
   });
   handle("cloudflare:restoreWorkerDeployment", async (accountId, scriptName, deploymentId) => {
@@ -323,11 +442,29 @@ export function registerIpc(window: BrowserWindow): void {
       provider: "cloudflare-workers",
       title: "Restored Worker deployment",
       projectName: String(scriptName),
+      targetId: String(accountId),
     });
   });
   handle("cloudflare:workerRoutes", (accountId, scriptName) =>
     listWorkerRoutes(String(accountId), scriptName as string | undefined),
   );
+  handle("cloudflare:createWorkerRoute", async (accountId, scriptName, zoneId, pattern) => {
+    await createWorkerRoute(String(accountId), String(scriptName), String(zoneId), String(pattern));
+    await addActivity({
+      kind: "domain-added",
+      provider: "cloudflare-workers",
+      title: `Added route ${pattern}`,
+      projectName: String(scriptName),
+    });
+  });
+  handle("cloudflare:deleteWorkerRoute", async (zoneId, routeId) => {
+    await deleteWorkerRoute(String(zoneId), String(routeId));
+    await addActivity({
+      kind: "domain-removed",
+      provider: "cloudflare-workers",
+      title: "Removed Worker route",
+    });
+  });
   handle("cloudflare:workerDomains", (accountId, scriptName) =>
     listWorkerDomains(String(accountId), scriptName as string | undefined),
   );
@@ -342,11 +479,11 @@ export function registerIpc(window: BrowserWindow): void {
   handle("cloudflare:workerVars", (accountId, scriptName) => listWorkerVars(String(accountId), String(scriptName)));
   handle("cloudflare:upsertWorkerVar", async (accountId, scriptName, name, value) => {
     await upsertWorkerVar(String(accountId), String(scriptName), String(name), String(value));
-    await addActivity({ kind: "env-variable-changed", provider: "cloudflare-workers", title: `Updated ${name}`, projectName: String(scriptName) });
+    await addActivity({ kind: "env-variable-changed", provider: "cloudflare-workers", title: `Updated ${name}`, projectName: String(scriptName), targetId: `${accountId}::${scriptName}` });
   });
   handle("cloudflare:deleteWorkerVar", async (accountId, scriptName, name) => {
     await deleteWorkerVar(String(accountId), String(scriptName), String(name));
-    await addActivity({ kind: "env-variable-deleted", provider: "cloudflare-workers", title: `Deleted ${name}`, projectName: String(scriptName) });
+    await addActivity({ kind: "env-variable-deleted", provider: "cloudflare-workers", title: `Deleted ${name}`, projectName: String(scriptName), targetId: `${accountId}::${scriptName}` });
   });
   handle("cloudflare:workerSecrets", (accountId, scriptName) => listWorkerSecrets(String(accountId), String(scriptName)));
   handle("cloudflare:putWorkerSecret", async (accountId, scriptName, name, value) => {
@@ -363,17 +500,17 @@ export function registerIpc(window: BrowserWindow): void {
   handle("cloudflare:dnsRecords", (zoneId, query) => listDnsRecords(String(zoneId), query as never));
   handle("cloudflare:createDnsRecord", async (input) => {
     const record = await createDnsRecord(input as never);
-    await addActivity({ kind: "dns-record-created", provider: "cloudflare", title: `Created ${record.type} ${record.name}` });
+    await addActivity({ kind: "dns-record-created", provider: "cloudflare", title: `Created ${record.type} ${record.name}`, targetId: record.zoneId });
     return record;
   });
   handle("cloudflare:updateDnsRecord", async (recordId, input) => {
     const record = await updateDnsRecord(String(recordId), input as never);
-    await addActivity({ kind: "dns-record-updated", provider: "cloudflare", title: `Updated ${record.type} ${record.name}` });
+    await addActivity({ kind: "dns-record-updated", provider: "cloudflare", title: `Updated ${record.type} ${record.name}`, targetId: record.zoneId });
     return record;
   });
   handle("cloudflare:deleteDnsRecord", async (zoneId, recordId) => {
     await deleteDnsRecord(String(zoneId), String(recordId));
-    await addActivity({ kind: "dns-record-deleted", provider: "cloudflare", title: "Deleted DNS record" });
+    await addActivity({ kind: "dns-record-deleted", provider: "cloudflare", title: "Deleted DNS record", targetId: String(zoneId) });
   });
 
   handle("prefs:get", () => getPreferences());

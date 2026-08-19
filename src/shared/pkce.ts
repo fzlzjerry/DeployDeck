@@ -1,0 +1,18 @@
+import { createHash, randomBytes } from "node:crypto";
+
+export interface PkcePair {
+  verifier: string;
+  challenge: string;
+  state: string;
+}
+
+export function createPkce(): PkcePair {
+  const verifier = randomBytes(32).toString("base64url");
+  const challenge = createHash("sha256").update(verifier).digest("base64url");
+  const state = randomBytes(24).toString("base64url");
+  return { verifier, challenge, state };
+}
+
+export function challengeFromVerifier(verifier: string): string {
+  return createHash("sha256").update(verifier).digest("base64url");
+}

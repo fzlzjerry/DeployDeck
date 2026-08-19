@@ -1,10 +1,11 @@
-import { Copy, Pause, Play, ScrollText, Trash2 } from "lucide-react";
-import { useEffect, useLayoutEffect, useRef } from "react";
+import { Copy, Pause, Play, Save, ScrollText, Trash2 } from "lucide-react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { DeploymentLogEntry, LogLevel } from "@shared/models";
+import { toast } from "sonner";
 import { EmptyState, ScreenError } from "@/components/common/empty-state";
-import { Button, Skeleton } from "@/components/ui/primitives";
+import { Button, Input, SelectControl, Skeleton } from "@/components/ui/primitives";
 import { cn } from "@/lib/cn";
-import { copyText, formatWhen } from "@/lib/format";
+import { copyText, errorMessage, formatWhen } from "@/lib/format";
 
 export interface LogViewerProps {
   entries: DeploymentLogEntry[];
@@ -51,6 +52,38 @@ export function LogViewer({
 }: LogViewerProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const pinnedToBottom = useRef(true);
+  const [saving, setSaving] = useState(false);
+  const [query, setQuery] = useState("");
+  const [level, setLevel] = useState<LogLevel | "all">("all");
+  const normalizedQuery = query.trim().toLowerCase();
+  const visible = useMemo(
+    () =>
+      entries.filter((entry) => {
+        if (level !== "all" && entry.level !== level) return false;
+        if (!normalizedQuery) return true;
+        return `${entry.message} ${entry.source ?? ""} ${entry.stage ?? ""}`.toLowerCase().includes(normalizedQuery);
+      }),
+    [entries, level, normalizedQuery],
+  );
+
+  const saveLogs = async () => {
+    if (entries.length === 0 || saving) return;
+    setSaving(true);
+    try {
+      const contents = entries
+        .map((entry) => {
+          const time = entry.timestamp ? `${entry.timestamp} ` : "";
+          return `${time}${entry.level.toUpperCase()} ${entry.message}`;
+        })
+        .join("\n");
+      const saved = await window.deployDeck.files.saveText("deploydeck-logs.txt", `${contents}\n`);
+      if (saved) toast.success("Logs saved");
+    } catch (error) {
+      toast.error(errorMessage(error));
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const handleScroll = () => {
     const el = scrollRef.current;
@@ -96,26 +129,60 @@ export function LogViewer({
     );
   }
 
-  const hasControls = live || (entries.length > 0 && Boolean(onClear));
+  const hasControls = live || entries.length > 0;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       {hasControls ? (
-        <div className="flex items-center justify-between gap-2 border-b border-line px-3 py-1.5">
-          <span className="text-[11px] text-muted">
-            {live ? (paused ? "Paused" : "Live") : `${entries.length} lines`}
-            {live && entries.length > 0 ? ` · ${entries.length} lines` : ""}
-          </span>
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-3 py-1.5">
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+            <span className="text-[11px] text-muted">
+              {live ? (paused ? "Paused" : "Live") : `${visible.length} lines`}
+              {live && entries.length > 0 ? ` · ${visible.length}/${entries.length}` : ""}
+              {!live && (normalizedQuery || level !== "all") ? ` of ${entries.length}` : ""}
+            </span>
+            {entries.length > 0 ? (
+              <>
+                <Input
+                  aria-label="Filter log text"
+                  placeholder="Filter"
+                  className="h-7 w-36"
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                />
+                <SelectControl
+                  ariaLabel="Filter by log level"
+                  className="w-28"
+                  size="sm"
+                  value={level}
+                  onValueChange={(value) => setLevel(value as LogLevel | "all")}
+                  options={[
+                    { value: "all", label: "All levels" },
+                    { value: "error", label: "Error" },
+                    { value: "warn", label: "Warn" },
+                    { value: "info", label: "Info" },
+                    { value: "debug", label: "Debug" },
+                  ]}
+                />
+              </>
+            ) : null}
+          </div>
           <div className="flex items-center gap-1">
             {entries.length > 0 ? (
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => void copyText(entries.map((entry) => entry.message).join("\n"))}
-              >
-                <Copy aria-hidden />
-                Copy
-              </Button>
+              <>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => void copyText(entries.map((entry) => entry.message).join("\n"))}
+                >
+                  <Copy aria-hidden />
+                  Copy
+                </Button>
+                <Button size="sm" variant="ghost" loading={saving} onClick={() => void saveLogs()}>
+                  <Save aria-hidden />
+                  Save
+                </Button>
+              </>
             ) : null}
             {live && onPause ? (
               <Button size="sm" variant="ghost" onClick={() => onPause(!paused)}>
@@ -132,13 +199,25 @@ export function LogViewer({
           </div>
         </div>
       ) : null}
-      {entries.length === 0 ? (
+      {entries.length === 0 || visible.length === 0 ? (
         <div className="flex min-h-0 flex-1 items-center justify-center">
           <EmptyState
             size="inline"
             icon={<ScrollText />}
-            title={live ? "Waiting for output" : "No log output"}
-            body={live ? "New lines appear here as the deployment emits them." : undefined}
+            title={
+              entries.length === 0
+                ? live
+                  ? "Waiting for output"
+                  : "No log output"
+                : "No matching lines"
+            }
+            body={
+              entries.length === 0
+                ? live
+                  ? "New lines appear here as the deployment emits them."
+                  : undefined
+                : "Adjust the text or level filter to see more of this log."
+            }
           />
         </div>
       ) : (
@@ -147,7 +226,7 @@ export function LogViewer({
           onScroll={handleScroll}
           className="min-h-0 flex-1 overflow-auto bg-surface/40 p-3 font-mono text-[12px] leading-5 select-text"
         >
-          {entries.map((entry) => (
+          {visible.map((entry) => (
             <div key={entry.id} className="flex gap-3 whitespace-pre-wrap">
               {entry.timestamp ? (
                 <span className="shrink-0 tabular-nums text-muted">{formatWhen(entry.timestamp, "absolute")}</span>

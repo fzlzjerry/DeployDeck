@@ -83,7 +83,7 @@ export function SettingsScreen({ onReplaySetup }: { onReplaySetup?: () => void }
           <SettingsSection
             size="sm"
             title="Connections"
-            description="Tokens are encrypted by macOS and stay in the Electron main process."
+            description="Sign-in sessions are encrypted by macOS and stay in the Electron main process."
             className="max-w-none"
           >
             <ProviderConnectionRow provider={vercel} />

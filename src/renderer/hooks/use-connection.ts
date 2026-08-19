@@ -19,6 +19,10 @@ export function useConnect() {
       mutationFn: (token: string) => window.deployDeck.connections.connectCloudflare(token),
       onSuccess: () => client.invalidateQueries(),
     }),
+    oauth: useMutation({
+      mutationFn: (provider: "vercel" | "cloudflare") => window.deployDeck.connections.startOAuth(provider),
+      onSuccess: () => client.invalidateQueries(),
+    }),
     disconnect: useMutation({
       mutationFn: (provider: "vercel" | "cloudflare") => window.deployDeck.connections.disconnect(provider),
       onSuccess: () => client.invalidateQueries(),

@@ -41,13 +41,39 @@ npm run make
 
 On Node 26, Electron Forge's packager hangs while extracting the Electron zip (`extract-zip` never finishes). `npm run make` therefore builds production Vite bundles and assembles the macOS app with `ditto` and `hdiutil`.
 
-## Tokens
+## Sign-in
+
+DeployDeck signs in through the system browser with OAuth (Authorization Code + PKCE). The callback is always `http://127.0.0.1:17342/oauth/callback`. Copy `.env.example` to `.env` and set the public client IDs. Client secrets must not be added to the app.
+
+Pasting a personal or API token is still available as a fallback, including for accounts that already have a saved token.
+
+### Vercel — Sign in with Vercel
+
+1. Create a Sign in with Vercel app
+2. Set client authentication to `none`
+3. Add the callback URI above
+4. Enable `openid`, `email`, `profile`, and `offline_access`
+5. Put the client ID in `VERCEL_OAUTH_CLIENT_ID`
+
+Vercel team-resource API permissions for these access tokens are still in private beta. If sign-in succeeds but project or team calls fail, paste a token instead.
 
 ### Vercel personal access token
 
 1. Open [https://vercel.com/account/tokens](https://vercel.com/account/tokens)
 2. Create a token with access to the teams you want to manage
-3. Paste it into DeployDeck and click Connect
+3. In DeployDeck, open **Or paste a token** and connect
+
+### Cloudflare — OAuth client
+
+1. Open **Manage Account → OAuth clients** in the Cloudflare dashboard
+2. Create a client with response type `code`, grant types `authorization_code` and `refresh_token`, and token authentication `none`
+3. Add the same callback URI
+4. Select scopes that match the permissions below. Cloudflare requires the authorization URL to include an explicit scope list. DeployDeck reuses previously granted scopes or preflights its known scope ids; set `CLOUDFLARE_OAUTH_SCOPES` to the client's exact ids for deterministic first sign-in.
+5. Put the client ID in `CLOUDFLARE_OAUTH_CLIENT_ID`
+
+New clients are private: only members of the account that created the client can authorize. Making a client public requires domain verification and cannot be undone.
+
+DeployDeck stores the granted scope list with the encrypted OAuth credential. Cloudflare surfaces that were not granted are not polled or shown as available, so one missing permission does not break the rest of the workspace. Reconnect after changing the client scopes.
 
 ### Cloudflare API token
 
@@ -55,19 +81,21 @@ On Node 26, Electron Forge's packager hangs while extracting the Electron zip (`
 2. Create a custom token
 3. Grant only the permissions you actually use
 
-Recommended Cloudflare permissions:
+Recommended Cloudflare permissions (OAuth scopes and API tokens):
 
-- Account read
-- Account / Cloudflare Pages read and write
-- Account / Workers Scripts read and write
-- Zone read
-- Zone / DNS read and write
+- Account Settings → Read (`account-settings.read`)
+- Pages / Cloudflare Pages → Edit
+- Workers / Workers Scripts → Edit (`workers-scripts.edit`)
+- Workers Routes → Edit (`workers-routes.write`)
+- Workers Tail → Read (`workers-tail.read`)
+- Zone → Read (`zone.read`)
+- DNS → Edit (`dns.write`)
 
 If a feature is denied, the provider error is shown in place. You do not need every permission to use the rest of the app.
 
 ## Credential storage
 
-Tokens are encrypted with Electron `safeStorage` and stored only as ciphertext in `electron-store` under your user data directory. They are decrypted in the Electron main process for API calls. The renderer never receives a token.
+OAuth access and refresh tokens, and pasted API tokens, are encrypted with Electron `safeStorage` and stored only as ciphertext in `electron-store` under your user data directory. They are decrypted in the Electron main process for API calls. The renderer never receives a token. Existing pasted tokens keep working until you reconnect.
 
 ## Known provider limits
 

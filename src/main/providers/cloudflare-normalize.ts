@@ -19,6 +19,7 @@ import {
   gitRepositoryUrl,
   httpsUrl,
 } from "@shared/provider-types";
+import { pagesVerificationRecords } from "@shared/domain-dns";
 import { redactJson } from "@shared/redact";
 import { inferLogLevel, pagesEnvironment, pagesState } from "@shared/status";
 
@@ -145,6 +146,14 @@ export function normalizePagesDomain(
     verified: text(domain.status) === "active",
     certificateStatus: text(cert.status) ?? text(domain.certificate_status),
     verificationStatus: text(validation.status) ?? text(domain.status),
+    verificationRecords: pagesVerificationRecords(
+      {
+        txt_name: text(validation.txt_name),
+        txt_value: text(validation.txt_value),
+      },
+      String(domain.name ?? domain.id ?? ""),
+      projectName,
+    ),
   };
 }
 

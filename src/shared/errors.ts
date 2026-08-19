@@ -70,6 +70,8 @@ export function sanitizeErrorMessage(message: string): string {
     .replace(/Bearer\s+[A-Za-z0-9._~+/=-]+/gi, "Bearer [redacted]")
     .replace(/Authorization:\s*[^\s]+/gi, "Authorization: [redacted]")
     .replace(/api[_-]?token["']?\s*[:=]\s*["']?[^"'\s]+/gi, "api_token=[redacted]")
+    .replace(/access_token["']?\s*[:=]\s*["']?[^"'\s]+/gi, "access_token=[redacted]")
+    .replace(/refresh_token["']?\s*[:=]\s*["']?[^"'\s]+/gi, "refresh_token=[redacted]")
     .replace(/[A-Za-z0-9_]{20,}\.[A-Za-z0-9._-]{10,}/g, "[redacted]");
 }
 
@@ -79,8 +81,8 @@ export function friendlyProviderMessage(error: AppError): string {
 
   if (status === 401 || raw.includes("unauthorized") || raw.includes("not authenticated")) {
     return error.provider === "vercel"
-      ? "Vercel rejected this token. Replace it in Settings."
-      : "Cloudflare rejected this token. Replace it in Settings.";
+      ? "Vercel rejected this session. Sign in again or paste a new token in Settings."
+      : "Cloudflare rejected this session. Sign in again or paste a new token in Settings.";
   }
 
   if (status === 403 || raw.includes("forbidden") || raw.includes("permission") || raw.includes("not allowed")) {

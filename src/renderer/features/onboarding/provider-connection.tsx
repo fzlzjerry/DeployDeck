@@ -3,6 +3,7 @@ import gsap from "gsap";
 import { ExternalLink, TriangleAlert } from "lucide-react";
 import { useId, useRef, useState, type FormEvent } from "react";
 import { toast } from "sonner";
+import { isOAuthCancelledMessage } from "@shared/oauth";
 import { CLOUDFLARE_TOKEN_URL, VERCEL_TOKEN_URL } from "@shared/provider-types";
 import { Lamp, LampReadout, type LampState } from "@/components/common/lamp";
 import { ProviderTile } from "@/components/common/provider-glyph";
@@ -25,15 +26,29 @@ export interface ProviderConnectionState {
   name: string;
   tokenUrl: string;
   connected: boolean;
+  oauthAvailable: boolean;
+  authKind?: "oauth" | "pat";
+  grantedScopes: string[];
   /** Who or what the saved token resolves to, once verified. */
   account?: string;
   checking: boolean;
   connecting: boolean;
+  oauthConnecting: boolean;
+  oauthBlocked: boolean;
   disconnecting: boolean;
   error?: string;
   connect: (token: string) => void;
+  signIn: () => void;
+  cancelSignIn: () => void;
   disconnect: () => void;
   openTokenPage: () => void;
+}
+
+function visibleError(error: unknown): string | undefined {
+  if (!error) return undefined;
+  const message = errorMessage(error);
+  if (isOAuthCancelledMessage(message)) return undefined;
+  return message;
 }
 
 /**
@@ -44,11 +59,15 @@ export function useProviderConnection(id: ProviderId): ProviderConnectionState {
   const meta = PROVIDER_META[id];
   const connection = useConnection();
   const connect = useConnect();
-  const mutation = id === "vercel" ? connect.vercel : connect.cloudflare;
+  const paste = id === "vercel" ? connect.vercel : connect.cloudflare;
+  const oauthForThis = connect.oauth.isPending && connect.oauth.variables === id;
 
   const vercel = connection.data?.vercel;
   const cloudflare = connection.data?.cloudflare;
   const connected = Boolean(id === "vercel" ? vercel?.connected : cloudflare?.connected);
+  const oauthAvailable = Boolean(connection.data?.oauth[id]);
+  const authKind = id === "vercel" ? vercel?.authKind : cloudflare?.authKind;
+  const grantedScopes = id === "vercel" ? (vercel?.grantedScopes ?? []) : (cloudflare?.grantedScopes ?? []);
 
   let account: string | undefined;
   if (id === "vercel") {
@@ -58,20 +77,40 @@ export function useProviderConnection(id: ProviderId): ProviderConnectionState {
     account = `${count} ${count === 1 ? "account" : "accounts"} available`;
   }
 
+  const pasteError = paste.isError ? visibleError(paste.error) : undefined;
+  const oauthError =
+    connect.oauth.isError && connect.oauth.variables === id ? visibleError(connect.oauth.error) : undefined;
+
   return {
     id,
     name: meta.name,
     tokenUrl: meta.tokenUrl,
     connected,
+    oauthAvailable,
+    authKind,
+    grantedScopes,
     account,
     checking: connection.isLoading,
-    connecting: mutation.isPending,
+    connecting: paste.isPending,
+    oauthConnecting: oauthForThis,
+    oauthBlocked: connect.oauth.isPending && connect.oauth.variables !== id,
     disconnecting: connect.disconnect.isPending && connect.disconnect.variables === id,
-    error: mutation.isError ? errorMessage(mutation.error) : undefined,
+    error: oauthError ?? pasteError,
     connect: (token: string) =>
-      mutation.mutate(token, {
+      paste.mutate(token, {
         onSuccess: () => toast.success(connected ? `${meta.name} token replaced` : `${meta.name} connected`),
       }),
+    signIn: () =>
+      connect.oauth.mutate(id, {
+        onSuccess: (status) => {
+          if (status) toast.success(connected ? `${meta.name} reconnected` : `${meta.name} connected`);
+        },
+        onError: (error) => {
+          const message = visibleError(error);
+          if (message) toast.error(message);
+        },
+      }),
+    cancelSignIn: () => void window.deployDeck.connections.cancelOAuth(),
     disconnect: () =>
       connect.disconnect.mutate(id, {
         onSuccess: () => toast.success(`${meta.name} disconnected`),
@@ -122,12 +161,13 @@ export function ProviderTokenForm({
   const [token, setToken] = useState("");
   const inputId = useId();
   const errorId = `${inputId}-error`;
-  const { connected, connecting, error } = provider;
+  const { connected, connecting, oauthConnecting, error } = provider;
+  const busy = connecting || oauthConnecting;
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const value = token.trim();
-    if (!value || connecting) return;
+    if (!value || busy) return;
     provider.connect(value);
     setToken("");
   };
@@ -145,22 +185,18 @@ export function ProviderTokenForm({
           spellCheck={false}
           autoFocus={autoFocus}
           value={token}
+          disabled={busy}
           aria-invalid={Boolean(error)}
           aria-describedby={error ? errorId : undefined}
           onChange={(event) => setToken(event.target.value)}
           placeholder={connected ? `Paste a new ${provider.name} token` : `Paste your ${provider.name} token`}
           className="font-mono text-[12px] placeholder:font-sans placeholder:text-[13px]"
         />
-        <Button type="submit" size="default" loading={connecting} disabled={!token.trim()}>
+        <Button type="submit" size="default" loading={connecting} disabled={!token.trim() || busy}>
           {connected ? "Replace" : "Connect"}
         </Button>
       </div>
-      {error ? (
-        <p id={errorId} role="alert" className="flex gap-1.5 text-[12px] leading-4 text-failed">
-          <TriangleAlert className="mt-px size-3.5 shrink-0" aria-hidden />
-          {error}
-        </p>
-      ) : null}
+      {error ? <p id={errorId} className="sr-only">{error}</p> : null}
     </form>
   );
 }
@@ -188,9 +224,69 @@ function DisconnectButton({ provider }: { provider: ProviderConnectionState }) {
   );
 }
 
+function SignInButton({ provider, reconnect }: { provider: ProviderConnectionState; reconnect?: boolean }) {
+  if (provider.oauthConnecting) {
+    return (
+      <div className="flex items-center gap-2">
+        <Button type="button" loading disabled>
+          Waiting for browser…
+        </Button>
+        <Button type="button" variant="ghost" size="sm" className="text-muted" onClick={provider.cancelSignIn}>
+          Cancel
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <Button
+      type="button"
+      onClick={provider.signIn}
+      disabled={!provider.oauthAvailable || provider.connecting || provider.oauthBlocked}
+      title={provider.oauthAvailable ? undefined : "Set the OAuth client ID in .env to enable sign-in."}
+    >
+      {reconnect ? `Reconnect ${provider.name}` : `Sign in with ${provider.name}`}
+    </Button>
+  );
+}
+
+function PasteTokenSlot({
+  provider,
+  autoFocus,
+  defaultOpen,
+}: {
+  provider: ProviderConnectionState;
+  autoFocus?: boolean;
+  defaultOpen?: boolean;
+}) {
+  const [open, setOpen] = useState(Boolean(defaultOpen));
+
+  return (
+    <div className="space-y-2">
+      {open ? (
+        <>
+          <ProviderTokenForm provider={provider} autoFocus={autoFocus} />
+          <div className="flex items-center gap-2">
+            <TokenPageButton provider={provider} />
+            {provider.oauthAvailable ? (
+              <Button variant="ghost" size="sm" className="text-muted" onClick={() => setOpen(false)}>
+                Hide token field
+              </Button>
+            ) : null}
+          </div>
+        </>
+      ) : (
+        <Button variant="ghost" size="sm" className="text-muted" onClick={() => setOpen(true)}>
+          Or paste a token
+        </Button>
+      )}
+    </div>
+  );
+}
+
 export function providerLampState(provider: ProviderConnectionState): LampState {
   if (provider.connected) return "live";
-  if (provider.connecting) return "verifying";
+  if (provider.connecting || provider.oauthConnecting) return "verifying";
   if (provider.error) return "fault";
   return "off";
 }
@@ -266,18 +362,37 @@ export function ProviderChannel({
         <div className="min-w-0 flex-1">
           <p className="text-[13px] font-semibold tracking-[-0.01em] text-ink">{provider.name}</p>
           <p className="truncate text-[12px] text-muted">
-            {connected ? (provider.account ?? "Token verified") : "Personal access token"}
+            {connected
+              ? (provider.account ?? "Connected")
+              : provider.oauthAvailable
+                ? "Sign in with OAuth"
+                : "Personal access token"}
           </p>
         </div>
         <LampReadout state={lamp} />
-        {connected ? <DisconnectButton provider={provider} /> : <TokenPageButton provider={provider} />}
+        {connected ? <DisconnectButton provider={provider} /> : null}
       </div>
 
       {!connected ? (
         <div data-slot className="relative overflow-hidden">
-          {/* A recessed well: the slot you feed the token into. */}
-          <div className="mt-3.5 rounded-lg bg-surface-sunken p-2.5 shadow-[inset_0_1px_3px_oklch(0_0_0/0.18)]">
-            <ProviderTokenForm provider={provider} autoFocus={autoFocus} />
+          <div className="mt-3.5 space-y-2.5 rounded-lg bg-surface-sunken p-2.5 shadow-[inset_0_1px_3px_oklch(0_0_0/0.18)]">
+            {provider.oauthAvailable ? <SignInButton provider={provider} /> : null}
+            {!provider.oauthAvailable ? (
+              <p className="text-[12px] leading-4 text-muted">
+                OAuth is not configured. Paste a token to connect this provider.
+              </p>
+            ) : null}
+            {provider.error ? (
+              <p role="alert" className="flex gap-1.5 text-[12px] leading-4 text-failed">
+                <TriangleAlert className="mt-px size-3.5 shrink-0" aria-hidden />
+                {provider.error}
+              </p>
+            ) : null}
+            <PasteTokenSlot
+              provider={provider}
+              autoFocus={autoFocus && !provider.oauthAvailable}
+              defaultOpen={!provider.oauthAvailable}
+            />
           </div>
         </div>
       ) : null}
@@ -289,11 +404,21 @@ export function ProviderChannel({
  * Settings presentation: the same behaviour inside the shared SettingRow chrome.
  */
 export function ProviderConnectionRow({ provider }: { provider: ProviderConnectionState }) {
+  const credentialDetail =
+    provider.authKind === "oauth"
+      ? provider.grantedScopes.length
+        ? `OAuth · ${provider.grantedScopes.length} scopes`
+        : "OAuth · reconnect to sync scopes"
+      : provider.authKind === "pat"
+        ? "Personal access token"
+        : undefined;
   const detail = provider.connected
-    ? (provider.account ?? "Token verified")
+    ? [provider.account ?? "Connected", credentialDetail].filter(Boolean).join(" · ")
     : provider.checking
       ? "Checking connection…"
-      : "No account connected";
+      : provider.oauthAvailable
+        ? "Sign in with the browser, or paste a token"
+        : "No account connected";
 
   return (
     <SettingRow
@@ -307,11 +432,20 @@ export function ProviderConnectionRow({ provider }: { provider: ProviderConnecti
       description={detail}
     >
       <div className="w-[min(28rem,46vw)] space-y-2">
-        <ProviderTokenForm provider={provider} />
-        <div className="flex items-center gap-2">
-          <TokenPageButton provider={provider} />
-          {provider.connected ? <DisconnectButton provider={provider} /> : null}
-        </div>
+        {provider.oauthAvailable ? <SignInButton provider={provider} reconnect={provider.connected} /> : null}
+        {!provider.oauthAvailable && !provider.connected ? (
+          <p className="text-[12px] leading-4 text-muted">
+            OAuth is not configured. Paste a token to connect this provider.
+          </p>
+        ) : null}
+        {provider.error ? (
+          <p role="alert" className="flex gap-1.5 text-[12px] leading-4 text-failed">
+            <TriangleAlert className="mt-px size-3.5 shrink-0" aria-hidden />
+            {provider.error}
+          </p>
+        ) : null}
+        <PasteTokenSlot provider={provider} defaultOpen={!provider.oauthAvailable || provider.connected} />
+        {provider.connected ? <DisconnectButton provider={provider} /> : null}
       </div>
     </SettingRow>
   );

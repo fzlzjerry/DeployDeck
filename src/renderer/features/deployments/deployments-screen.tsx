@@ -6,6 +6,7 @@ import type { UnifiedDeployment } from "@shared/models";
 import { ProviderMark, StatusBadge } from "@/components/common/status-badge";
 import { EmptyState, ScreenError } from "@/components/common/empty-state";
 import { LogViewer } from "@/components/logs/log-viewer";
+import { WorkerTailPanel } from "@/components/logs/worker-tail";
 import { DetailRow, InspectorHeader, InspectorPanel, ScreenToolbar } from "@/components/ui/layout";
 import { ContextMenuContent, ContextMenuItem as MenuItem } from "@/components/ui/menu";
 import {
@@ -33,6 +34,19 @@ export function DeploymentsScreen() {
   const searchNonce = useUiStore((state) => state.searchNonce);
   const connection = useConnection();
   const query = useUnifiedDeployments(filters);
+  const canVercel = Boolean(connection.data?.vercel.connected);
+  const canPages = Boolean(
+    connection.data?.cloudflare.connected && (connection.data.cloudflare.capabilities?.pages ?? true),
+  );
+  const canWorkers = Boolean(
+    connection.data?.cloudflare.connected && (connection.data.cloudflare.capabilities?.workers ?? true),
+  );
+  const providerOptions = [
+    { value: "all", label: "All providers" },
+    ...(canVercel ? [{ value: "vercel", label: "Vercel" }] : []),
+    ...(canPages ? [{ value: "cloudflare-pages", label: "Pages" }] : []),
+    ...(canWorkers ? [{ value: "cloudflare-workers", label: "Workers" }] : []),
+  ];
   const items = query.data?.pages.flatMap((page) => page.items) ?? [];
   const searchRef = useRef<HTMLInputElement>(null);
   const [search, setSearch] = useState(filters.query ?? "");
@@ -54,6 +68,17 @@ export function DeploymentsScreen() {
     }, 220);
     return () => window.clearTimeout(timeout);
   }, [search, setFilters]);
+
+  useEffect(() => {
+    const provider = filters.provider;
+    if (
+      (provider === "vercel" && !canVercel) ||
+      (provider === "cloudflare-pages" && !canPages) ||
+      (provider === "cloudflare-workers" && !canWorkers)
+    ) {
+      setFilters({ provider: "all" });
+    }
+  }, [canPages, canVercel, canWorkers, filters.provider, setFilters]);
 
   const resetFilters = () => {
     setSearch("");
@@ -91,12 +116,7 @@ export function DeploymentsScreen() {
             onValueChange={(provider) => setFilters({ provider: provider as never })}
             ariaLabel="Filter by provider"
             className="w-36"
-            options={[
-              { value: "all", label: "All providers" },
-              { value: "vercel", label: "Vercel" },
-              { value: "cloudflare-pages", label: "Pages" },
-              { value: "cloudflare-workers", label: "Workers" },
-            ]}
+            options={providerOptions}
           />
           <SelectControl
             value={filters.state ?? "all"}
@@ -311,6 +331,22 @@ export function DeploymentActions({ deployment }: { deployment: UnifiedDeploymen
           >
             Promote
           </MenuItem>
+          {deployment.state === "ready" ? (
+            <MenuItem
+              onSelect={() =>
+                ask({
+                  title: "Instant rollback to this deployment",
+                  body: `Production traffic for ${deployment.projectName} will point at this deployment.`,
+                  actionLabel: "Roll back",
+                  intent: "warning",
+                  onConfirm: () =>
+                    run("Rolled back", () => window.deployDeck.vercel.rollback(deployment.id, deployment.projectId)),
+                })
+              }
+            >
+              Instant rollback
+            </MenuItem>
+          ) : null}
           <MenuItem
             destructive
             onSelect={() =>
@@ -374,9 +410,25 @@ export function DeploymentActions({ deployment }: { deployment: UnifiedDeploymen
 }
 
 export function DeploymentDetail({ deployment }: { deployment: UnifiedDeployment }) {
-  const [tab, setTab] = useState<"overview" | "build" | "runtime" | "domains" | "raw">("overview");
+  const [tab, setTab] = useState<"overview" | "build" | "runtime" | "domains" | "raw">(() =>
+    deployment.state === "queued" || deployment.state === "building" ? "build" : "overview",
+  );
   const prefs = usePrefs();
   const client = useQueryClient();
+  const [buildPaused, setBuildPaused] = useState(false);
+  const openedId = useRef(deployment.id);
+
+  useEffect(() => {
+    if (openedId.current === deployment.id) return;
+    openedId.current = deployment.id;
+    setTab(deployment.state === "queued" || deployment.state === "building" ? "build" : "overview");
+    setBuildPaused(false);
+  }, [deployment.id, deployment.state]);
+
+  const followMs = prefs.data?.refreshEnabled ? (prefs.data.activeRefreshIntervalMs ?? 5000) : false;
+  const followWhileActive = (state: UnifiedDeployment["state"]) =>
+    Boolean(followMs) && !buildPaused && (state === "queued" || state === "building");
+
   const detail = useQuery({
     queryKey: ["deployment", deployment.provider, deployment.id, deployment.projectId],
     queryFn: async () => {
@@ -386,10 +438,14 @@ export function DeploymentDetail({ deployment }: { deployment: UnifiedDeployment
       }
       return deployment;
     },
+    refetchInterval: (query) => {
+      const state = query.state.data?.state ?? deployment.state;
+      return followWhileActive(state) ? followMs : false;
+    },
   });
   const buildLogs = useQuery({
     queryKey: ["build-logs", deployment.provider, deployment.id],
-    enabled: tab === "build",
+    enabled: tab === "build" && deployment.provider !== "cloudflare-workers",
     queryFn: async () => {
       if (deployment.provider === "vercel") return window.deployDeck.vercel.getBuildLogs(deployment.id);
       if (deployment.provider === "cloudflare-pages") {
@@ -397,37 +453,20 @@ export function DeploymentDetail({ deployment }: { deployment: UnifiedDeployment
       }
       return [];
     },
+    refetchInterval: () => {
+      if (tab !== "build") return false;
+      const state = detail.data?.state ?? deployment.state;
+      return followWhileActive(state) ? followMs : false;
+    },
   });
   const runtime = useQuery({
     queryKey: ["runtime-logs", deployment.provider, deployment.id],
     enabled: tab === "runtime" && deployment.provider === "vercel",
     queryFn: () => window.deployDeck.vercel.getRuntimeLogs(deployment.projectId, deployment.id),
   });
-  const [tailEntries, setTailEntries] = useState<typeof buildLogs.data>([]);
-  const [paused, setPaused] = useState(false);
-
-  useEffect(() => {
-    if (tab !== "runtime" || deployment.provider !== "cloudflare-workers") return;
-    let sessionId: string | undefined;
-    let active = true;
-    void window.deployDeck.cloudflare.startWorkerTail(deployment.accountId, deployment.projectName).then((session) => {
-      sessionId = session.sessionId;
-    });
-    const off = window.deployDeck.on<{ sessionId: string; entry: NonNullable<typeof tailEntries>[number] }>(
-      "host:worker-tail",
-      (payload) => {
-        if (!active || paused) return;
-        setTailEntries((current) => [...(current ?? []), payload.entry]);
-      },
-    );
-    return () => {
-      active = false;
-      off();
-      if (sessionId) void window.deployDeck.cloudflare.stopWorkerTail(sessionId);
-    };
-  }, [deployment, paused, tab]);
 
   const current = detail.data ?? deployment;
+  const liveBuild = (current.state === "queued" || current.state === "building") && deployment.provider !== "cloudflare-workers";
   const runtimeUnavailable =
     runtime.data && !Array.isArray(runtime.data) ? runtime.data.unavailable : undefined;
   const runtimeEntries = Array.isArray(runtime.data) ? runtime.data : [];
@@ -481,13 +520,33 @@ export function DeploymentDetail({ deployment }: { deployment: UnifiedDeployment
               Copy ID
             </Button>
             {current.provider === "vercel" ? (
-              <Button
-                size="sm"
-                variant="secondary"
-                onClick={() => void runAction("Redeployment started", () => window.deployDeck.vercel.redeploy(current.id))}
-              >
-                Redeploy
-              </Button>
+              <>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => void runAction("Redeployment started", () => window.deployDeck.vercel.redeploy(current.id))}
+                >
+                  Redeploy
+                </Button>
+                {current.state === "ready" ? (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() =>
+                      useUiStore.getState().askConfirm({
+                        title: "Instant rollback to this deployment",
+                        body: `Production traffic for ${current.projectName} will point at this deployment.`,
+                        actionLabel: "Roll back",
+                        intent: "warning",
+                        onConfirm: () =>
+                          runAction("Rolled back", () => window.deployDeck.vercel.rollback(current.id, current.projectId)),
+                      })
+                    }
+                  >
+                    Instant rollback
+                  </Button>
+                ) : null}
+              </>
             ) : null}
             {current.provider === "cloudflare-pages" ? (
               <Button
@@ -506,12 +565,19 @@ export function DeploymentDetail({ deployment }: { deployment: UnifiedDeployment
         </div>
       </TabsContent>
       <TabsContent value="build" className="flex min-h-0 flex-1 flex-col">
-        <LogViewer
-          entries={buildLogs.data ?? []}
-          loading={buildLogs.isLoading}
-          error={buildLogs.isError ? errorMessage(buildLogs.error) : undefined}
-          onRetry={() => void buildLogs.refetch()}
-        />
+        {deployment.provider === "cloudflare-workers" ? (
+          <EmptyState title="No build log" body="Workers do not emit a build log. Use Live tail for runtime output." />
+        ) : (
+          <LogViewer
+            entries={buildLogs.data ?? []}
+            loading={buildLogs.isLoading}
+            live={liveBuild}
+            paused={buildPaused}
+            onPause={setBuildPaused}
+            error={buildLogs.isError ? errorMessage(buildLogs.error) : undefined}
+            onRetry={() => void buildLogs.refetch()}
+          />
+        )}
       </TabsContent>
       <TabsContent value="runtime" className="flex min-h-0 flex-1 flex-col">
         {deployment.provider === "vercel" ? (
@@ -524,7 +590,7 @@ export function DeploymentDetail({ deployment }: { deployment: UnifiedDeployment
           />
         ) : null}
         {deployment.provider === "cloudflare-workers" ? (
-          <LogViewer entries={tailEntries ?? []} live paused={paused} onPause={setPaused} onClear={() => setTailEntries([])} />
+          <WorkerTailPanel accountId={deployment.accountId} scriptName={deployment.projectName} />
         ) : null}
         {deployment.provider === "cloudflare-pages" ? (
           <EmptyState title="No runtime tail" body="Pages deployments expose build logs. Use the Build tab." />
@@ -550,4 +616,3 @@ export function DeploymentDetail({ deployment }: { deployment: UnifiedDeployment
     </Tabs>
   );
 }
-

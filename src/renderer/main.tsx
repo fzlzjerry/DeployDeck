@@ -3,6 +3,10 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
 import { TooltipProvider } from "./components/ui/primitives";
+// Imported here rather than via @import in globals.css: Tailwind's PostCSS
+// plugin resolves @import itself and does not rebase the package's relative
+// url() paths, which left the woff2 files unbundled and silently fell back.
+import "@fontsource-variable/geist-mono";
 import "./styles/globals.css";
 
 const queryClient = new QueryClient({

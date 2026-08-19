@@ -2,7 +2,7 @@ import type { UnifiedDomain } from "@shared/models";
 import { domainNeedsDns, matchDnsZone } from "@shared/domain-dns";
 import { useState } from "react";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/primitives";
+import { Badge, Button } from "@/components/ui/primitives";
 import { useZones } from "@/hooks/use-data";
 import { copyText, errorMessage } from "@/lib/format";
 import { summarizeWriteResult, writeDomainVerification } from "@/lib/write-domain-dns";
@@ -36,27 +36,40 @@ export function DomainVerification({
   };
 
   return (
-    <div className="mt-2 space-y-1.5">
-      {records.map((record) => (
-        <div key={`${record.type}:${record.name}:${record.value}`} className="flex items-start justify-between gap-2">
-          <p className="min-w-0 font-mono text-[11px] leading-4 text-muted">
-            <span className="text-ink">{record.type}</span> {record.name} → {record.value}
-          </p>
-          <Button
-            size="sm"
-            variant="ghost"
-            className="shrink-0"
-            onClick={() => void copyText(`${record.type} ${record.name} ${record.value}`)}
+    <div className="space-y-2">
+      <p className="text-label font-medium text-muted">
+        {records.length === 1 ? "Required DNS record" : `Required DNS records (${records.length})`}
+      </p>
+      <div className="divide-y divide-line/70 overflow-hidden rounded-control border border-line bg-panel">
+        {records.map((record) => (
+          <div
+            key={`${record.type}:${record.name}:${record.value}`}
+            className="flex items-center justify-between gap-3 px-3 py-1.5"
           >
-            Copy
-          </Button>
-        </div>
-      ))}
-      <div className="flex flex-wrap items-center gap-2 pt-1">
+            <p className="flex min-w-0 items-center gap-2 font-mono text-label select-text">
+              <Badge variant="outline" className="shrink-0 font-mono text-ink">
+                {record.type}
+              </Badge>
+              <span className="truncate text-ink">{record.name}</span>
+              <span className="shrink-0 text-subtle">→</span>
+              <span className="truncate text-muted">{record.value}</span>
+            </p>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="shrink-0"
+              onClick={() => void copyText(`${record.type} ${record.name} ${record.value}`)}
+            >
+              Copy
+            </Button>
+          </div>
+        ))}
+      </div>
+      <div className="flex flex-wrap items-center gap-2.5">
         <Button size="sm" variant="secondary" loading={writing} disabled={!canWrite} onClick={() => void write()}>
           Write DNS
         </Button>
-        <span className="text-[11px] text-muted">
+        <span className="text-dense text-muted">
           {canWrite
             ? `Writes into ${zone?.name} as DNS only.`
             : "Connect Cloudflare with a matching zone to write these records."}

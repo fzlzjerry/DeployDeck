@@ -7,11 +7,13 @@ import { cn } from "@/lib/cn";
  * One menu vocabulary for both the right-click and the dropdown surfaces, so a
  * "Copy value" item cannot look different depending on how it was opened.
  */
-const menuContentClass =
-  "z-50 min-w-44 overflow-hidden rounded-md bg-bg p-1 text-[12px] text-ink shadow-[var(--shadow-popover)] popover-motion";
+const menuContentClass = cn(
+  "z-[var(--z-dropdown)] min-w-48 overflow-hidden rounded-control bg-panel p-1 text-dense text-ink",
+  "shadow-[var(--shadow-popover)] popover-motion",
+);
 
 const menuItemClass = cn(
-  "flex cursor-default select-none items-center gap-2 rounded px-2 py-1.5 text-[12px] outline-none",
+  "flex h-8 cursor-default select-none items-center gap-2 rounded-md px-2 text-dense outline-none",
   "transition-colors duration-100 ease-[var(--ease-out-expo)] motion-reduce:transition-none",
   "data-[highlighted]:bg-surface-2 data-[disabled]:pointer-events-none data-[disabled]:opacity-40",
 );
@@ -39,7 +41,7 @@ export const ContextMenuItem = React.forwardRef<
   return (
     <ContextMenuPrimitive.Item
       ref={ref}
-      className={cn(menuItemClass, destructive && "text-failed data-[highlighted]:bg-failed-soft", className)}
+      className={cn(menuItemClass, destructive && "text-failed-ink data-[highlighted]:bg-failed-soft", className)}
       {...props}
     />
   );
@@ -74,7 +76,7 @@ export const DropdownMenuItem = React.forwardRef<
   return (
     <DropdownMenuPrimitive.Item
       ref={ref}
-      className={cn(menuItemClass, destructive && "text-failed data-[highlighted]:bg-failed-soft", className)}
+      className={cn(menuItemClass, destructive && "text-failed-ink data-[highlighted]:bg-failed-soft", className)}
       {...props}
     />
   );

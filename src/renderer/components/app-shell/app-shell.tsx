@@ -13,6 +13,7 @@ import {
 import type { ReactNode } from "react";
 import type { Screen } from "@shared/models";
 import { Logo } from "@/components/common/logo";
+import { PageHeader } from "@/components/ui/layout";
 import { Button, Kbd, SelectControl } from "@/components/ui/primitives";
 import { useConnection, usePrefs } from "@/hooks/use-connection";
 import { cn } from "@/lib/cn";
@@ -39,6 +40,18 @@ const SCREEN_LABEL: Record<Screen, string> = {
   settings: "Settings",
 };
 
+/** One line per screen, saying what the surface is for rather than selling it. */
+const SCREEN_DESCRIPTION: Record<Screen, string> = {
+  overview: "What is building, what failed, and what shipped across your connected providers.",
+  deployments: "Every deployment from Vercel, Pages, and Workers in one filterable list.",
+  projects: "Vercel projects, Pages sites, and Workers, with their latest deployment state.",
+  domains: "Domains attached to your Vercel projects and Cloudflare zones.",
+  dns: "Read and edit DNS records on the Cloudflare zones you can reach.",
+  environments: "Environment variables and secrets, one project and target at a time.",
+  activity: "Local actions plus recently fetched deployments. Not a provider audit log.",
+  settings: "Manage providers, workspace behavior, and the signals DeployDeck keeps an eye on.",
+};
+
 const contentVariants = {
   enter: { opacity: 0, y: 2 },
   center: { opacity: 1, y: 0 },
@@ -51,6 +64,9 @@ const reducedContentVariants = {
   exit: { opacity: 0 },
 };
 
+const navRow =
+  "relative flex h-9 items-center gap-2.5 rounded-control px-2.5 text-left text-body transition-colors duration-150 focus-visible:z-10";
+
 export function AppShell({ children }: { children: ReactNode }) {
   const screen = useUiStore((state) => state.screen);
   const setScreen = useUiStore((state) => state.setScreen);
@@ -60,16 +76,20 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <div className={cn("flex h-full", prefs.data?.density === "comfortable" ? "comfortable" : "compact")}>
-      <aside className="flex w-[var(--sidebar)] shrink-0 flex-col border-r border-line bg-surface" aria-label="Workspace navigation">
+      <aside
+        className="flex w-[var(--sidebar)] shrink-0 flex-col border-r border-line bg-surface"
+        aria-label="Workspace navigation"
+      >
         <div className="app-drag shrink-0">
+          {/* Clearance for the macOS traffic lights. */}
           <div className="h-12" />
           <div className="flex items-center gap-2.5 px-3 pb-3">
             <Logo className="size-5 shrink-0" />
-            <span className="text-[13px] font-semibold tracking-[-0.015em]">DeployDeck</span>
+            <span className="text-body font-semibold tracking-[-0.015em]">DeployDeck</span>
           </div>
         </div>
         <LayoutGroup>
-          <nav className="app-no-drag flex flex-1 flex-col gap-0.5 px-2 py-2" aria-label="Primary">
+          <nav className="app-no-drag flex flex-1 flex-col gap-0.5 px-3 py-2" aria-label="Primary">
             {NAV.map((item) => {
               const Icon = item.icon;
               const active = screen === item.id;
@@ -79,19 +99,16 @@ export function AppShell({ children }: { children: ReactNode }) {
                   key={item.id}
                   onClick={() => setScreen(item.id)}
                   aria-current={active ? "page" : undefined}
-                  className={cn(
-                    "relative flex h-8 items-center gap-2 rounded-md px-2 text-left text-[13px] transition-colors duration-150 focus-visible:z-10",
-                    active ? "text-ink" : "text-muted hover:bg-bg/70 hover:text-ink",
-                  )}
+                  className={cn(navRow, active ? "text-ink" : "text-muted hover:bg-bg/70 hover:text-ink")}
                 >
                   {active ? (
                     <motion.span
                       layoutId="nav-pill"
-                      className="absolute inset-0 rounded-md bg-bg shadow-[inset_0_0_0_1px_var(--line)]"
+                      className="absolute inset-0 rounded-control bg-panel shadow-[inset_0_0_0_1px_var(--line)]"
                       transition={reduce ? { duration: 0 } : { duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
                     />
                   ) : null}
-                  <Icon className={cn("relative size-3.5", active && "text-ember-ink")} strokeWidth={1.75} />
+                  <Icon className={cn("relative size-4", active && "text-ember-ink")} strokeWidth={1.75} />
                   <span className="relative">{item.label}</span>
                 </button>
               );
@@ -102,18 +119,22 @@ export function AppShell({ children }: { children: ReactNode }) {
                 onClick={() => setScreen("settings")}
                 aria-current={screen === "settings" ? "page" : undefined}
                 className={cn(
-                  "relative flex h-8 w-full items-center gap-2 rounded-md px-2 text-left text-[13px] transition-colors duration-150 focus-visible:z-10",
+                  navRow,
+                  "w-full",
                   screen === "settings" ? "text-ink" : "text-muted hover:bg-bg/70 hover:text-ink",
                 )}
               >
                 {screen === "settings" ? (
                   <motion.span
                     layoutId="nav-pill"
-                    className="absolute inset-0 rounded-md bg-bg shadow-[inset_0_0_0_1px_var(--line)]"
+                    className="absolute inset-0 rounded-control bg-panel shadow-[inset_0_0_0_1px_var(--line)]"
                     transition={reduce ? { duration: 0 } : { duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
                   />
                 ) : null}
-                <Settings className={cn("relative size-3.5", screen === "settings" && "text-ember-ink")} strokeWidth={1.75} />
+                <Settings
+                  className={cn("relative size-4", screen === "settings" && "text-ember-ink")}
+                  strokeWidth={1.75}
+                />
                 <span className="relative">Settings</span>
               </button>
             </div>
@@ -122,22 +143,21 @@ export function AppShell({ children }: { children: ReactNode }) {
         <AccountLines onOpenSettings={() => setScreen("settings")} />
       </aside>
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="app-drag flex h-12 shrink-0 items-center justify-between border-b border-line pr-3 pl-4">
-          <h1 id="screen-title" className="text-[13px] font-semibold tracking-[-0.01em]">
-            {SCREEN_LABEL[screen]}
-          </h1>
+        {/* The title used to live in this bar at 13px. It now sits below, at
+            full size, and the bar carries only the command palette entry. */}
+        <header className="app-drag flex h-12 shrink-0 items-center justify-end px-6">
           <Button
             variant="outline"
-            size="sm"
-            className="app-no-drag w-52 justify-start bg-bg text-muted"
+            className="app-no-drag w-64 justify-start text-muted"
             aria-label="Open search and command palette"
             onClick={() => setCommandOpen(true)}
           >
-            <Search className="size-3.5" strokeWidth={1.75} />
+            <Search className="size-4" strokeWidth={1.75} />
             <span className="min-w-0 flex-1 truncate text-left font-normal">Search workspace</span>
             <Kbd>⌘K</Kbd>
           </Button>
         </header>
+        <PageHeader title={SCREEN_LABEL[screen]} description={SCREEN_DESCRIPTION[screen]} />
         <main className="app-no-drag relative min-h-0 flex-1 overflow-hidden" aria-labelledby="screen-title">
           <AnimatePresence initial={false}>
             <motion.div
@@ -165,18 +185,18 @@ function AccountLines({ onOpenSettings }: { onOpenSettings: () => void }) {
   const hasConnection = Boolean(vercel?.connected || cloudflare?.connected);
 
   return (
-    <section className="app-no-drag border-t border-line px-2 py-2" aria-label="Connected accounts">
-      <div className="mb-2 flex items-center justify-between px-1">
-        <p className="text-[11px] font-medium text-muted">Connections</p>
-        <span className="inline-flex items-center gap-1 text-[10px] text-muted">
+    <section className="app-no-drag border-t border-line px-3 py-3" aria-label="Connected accounts">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <p className="text-label font-medium text-muted">Connections</p>
+        <span className="inline-flex items-center gap-1.5 text-label text-muted">
           <span className={cn("size-1.5 rounded-full", hasConnection ? "bg-ready" : "bg-muted")} aria-hidden />
           {hasConnection ? "Online" : "Offline"}
         </span>
       </div>
-      <div className="space-y-2">
+      <div className="space-y-2.5">
         {vercel?.connected ? (
           <div className="space-y-1">
-            <p className="px-1 text-[11px] text-muted">Vercel</p>
+            <p className="text-label text-subtle">Vercel</p>
             <SelectControl
               className="w-full"
               size="sm"
@@ -195,7 +215,7 @@ function AccountLines({ onOpenSettings }: { onOpenSettings: () => void }) {
         ) : null}
         {cloudflare?.connected ? (
           <div className="space-y-1">
-            <p className="px-1 text-[11px] text-muted">Cloudflare</p>
+            <p className="text-label text-subtle">Cloudflare</p>
             <SelectControl
               className="w-full"
               size="sm"

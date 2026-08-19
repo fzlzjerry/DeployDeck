@@ -120,7 +120,7 @@ export function SetupGuide({ onFinished }: { onFinished: () => void }) {
                 <Logo className="size-10" />
               </span>
               <div className="flex items-center gap-2.5" data-boot="meter">
-                <span className="font-mono text-[11px] tracking-[0.02em] text-subtle">{liveCount} of 2 live</span>
+                <span className="font-mono text-micro tracking-[0.02em] text-subtle">{liveCount} of 2 live</span>
                 <LampBank states={[providerLampState(vercel), providerLampState(cloudflare)]} />
               </div>
             </div>
@@ -134,10 +134,10 @@ export function SetupGuide({ onFinished }: { onFinished: () => void }) {
             <div ref={flow.stage} className="overflow-hidden">
               <div className="pt-7">
                 <div data-row>
-                  <h1 className="text-[22px] leading-7 font-semibold tracking-[-0.025em] text-balance text-ink">
+                  <h1 className="text-console font-semibold tracking-[-0.025em] text-balance text-ink">
                     {copy.title}
                   </h1>
-                  <p className="mt-2 text-[13px] leading-5 text-pretty text-muted">{copy.body}</p>
+                  <p className="mt-2 text-pretty text-body text-muted">{copy.body}</p>
                 </div>
 
                 {flow.current.id === "channels" ? (
@@ -238,7 +238,7 @@ export function SetupGuide({ onFinished }: { onFinished: () => void }) {
         <div className="mx-auto flex w-full max-w-[560px] items-center justify-between gap-4 px-8 py-3.5">
           <div className="flex items-center gap-3">
             {flow.isFirst ? (
-              <p className={cn("flex items-center gap-2 text-[12px]", ready ? "text-ready" : "text-muted")}>
+              <p className={cn("flex items-center gap-2 text-dense", ready ? "text-ready-ink" : "text-muted")}>
                 <Lamp state={ready ? "live" : "off"} />
                 {ready ? "Channel live" : "Connect a provider to continue"}
               </p>
@@ -271,14 +271,14 @@ function ChannelSummary({ provider }: { provider: ProviderConnectionState }) {
   return (
     <div
       className={cn(
-        "flex items-center gap-3 rounded-xl px-4 py-3",
+        "flex items-center gap-3 rounded-panel px-4 py-3",
         live ? "bg-surface shadow-[inset_0_0_0_1px_var(--line)]" : "bg-surface/45",
       )}
     >
       <ProviderGlyph brand={provider.id} className={cn("size-[18px]", live ? "text-ink" : "text-subtle")} />
       <div className="min-w-0 flex-1">
-        <p className={cn("text-[13px] font-medium", live ? "text-ink" : "text-subtle")}>{provider.name}</p>
-        {live ? <p className="truncate text-[12px] text-muted">{provider.account ?? "Connected"}</p> : null}
+        <p className={cn("text-body font-medium", live ? "text-ink" : "text-subtle")}>{provider.name}</p>
+        {live ? <p className="truncate text-dense text-muted">{provider.account ?? "Connected"}</p> : null}
       </div>
       <Lamp state={live ? "live" : "off"} />
     </div>
@@ -312,10 +312,10 @@ export function CompactConnect({ onReplaySetup }: { onReplaySetup: () => void })
       <main className="app-no-drag mx-auto flex min-h-0 w-full max-w-[560px] flex-1 flex-col justify-center px-8 pb-10">
         <header data-row>
           <Logo className="size-10" />
-          <h1 className="mt-5 text-[22px] leading-7 font-semibold tracking-[-0.025em] text-ink">
+          <h1 className="mt-5 text-console font-semibold tracking-[-0.025em] text-ink">
             Both channels are dark
           </h1>
-          <p className="mt-2 text-[13px] leading-5 text-pretty text-muted">
+          <p className="mt-2 text-pretty text-body text-muted">
             {faulted
               ? "That sign-in was not accepted. Try again, or paste a token to bring the deck back online."
               : "Bring either provider back online to load projects and deployments."}

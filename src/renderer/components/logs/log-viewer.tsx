@@ -1,5 +1,5 @@
 import { Copy, Pause, Play, Save, ScrollText, Trash2 } from "lucide-react";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { DeploymentLogEntry, LogLevel } from "@shared/models";
 import { toast } from "sonner";
 import { EmptyState, ScreenError } from "@/components/common/empty-state";
@@ -22,18 +22,18 @@ export interface LogViewerProps {
 }
 
 const LEVEL_TONE: Record<LogLevel, string> = {
-  fatal: "text-failed",
-  error: "text-failed",
-  warn: "text-warning",
+  fatal: "text-failed-ink",
+  error: "text-failed-ink",
+  warn: "text-warning-ink",
   info: "text-ink",
   debug: "text-muted",
   trace: "text-muted",
-  unknown: "text-muted",
+  unknown: "text-subtle",
 };
 
 function LevelTag({ level }: { level: LogLevel }) {
   return (
-    <span className={cn("shrink-0 select-none font-medium uppercase", LEVEL_TONE[level])}>
+    <span className={cn("select-none font-medium uppercase", LEVEL_TONE[level])}>
       {level === "unknown" ? "log" : level}
     </span>
   );
@@ -121,9 +121,17 @@ export function LogViewer({
 
   if (loading && entries.length === 0) {
     return (
-      <div className="min-h-0 flex-1 space-y-1.5 p-3" role="status" aria-label="Loading logs">
+      <div
+        className="grid min-h-0 flex-1 content-start grid-cols-[92px_44px_minmax(0,1fr)] gap-x-3 gap-y-1.5 bg-surface-sunken p-3.5"
+        role="status"
+        aria-label="Loading logs"
+      >
         {Array.from({ length: 12 }).map((_, index) => (
-          <Skeleton key={index} className={cn("h-3", index % 3 === 0 ? "w-2/3" : index % 3 === 1 ? "w-5/6" : "w-1/2")} />
+          <Fragment key={index}>
+            <Skeleton className="h-3" />
+            <Skeleton className="h-3 w-8" />
+            <Skeleton className={cn("h-3", index % 3 === 0 ? "w-2/3" : index % 3 === 1 ? "w-5/6" : "w-1/2")} />
+          </Fragment>
         ))}
       </div>
     );
@@ -134,9 +142,9 @@ export function LogViewer({
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       {hasControls ? (
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-3 py-1.5">
+        <div className="flex min-h-12 flex-wrap items-center justify-between gap-2 border-b border-line px-4 py-2">
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-            <span className="text-[11px] text-muted">
+            <span className="text-dense text-muted tabular">
               {live ? (paused ? "Paused" : "Live") : `${visible.length} lines`}
               {live && entries.length > 0 ? ` · ${visible.length}/${entries.length}` : ""}
               {!live && (normalizedQuery || level !== "all") ? ` of ${entries.length}` : ""}
@@ -146,7 +154,7 @@ export function LogViewer({
                 <Input
                   aria-label="Filter log text"
                   placeholder="Filter"
-                  className="h-7 w-36"
+                  className="h-7 w-36 text-dense"
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
                 />
@@ -221,19 +229,25 @@ export function LogViewer({
           />
         </div>
       ) : (
+        /* One grid for the whole log, not a flex row per line: the first two
+           columns then size to their widest content across every row, so the
+           timestamp and level form real rails instead of a ragged left edge. */
         <div
           ref={scrollRef}
           onScroll={handleScroll}
-          className="min-h-0 flex-1 overflow-auto bg-surface/40 p-3 font-mono text-[12px] leading-5 select-text"
+          className={cn(
+            "grid min-h-0 flex-1 content-start grid-cols-[auto_auto_minmax(0,1fr)] gap-x-3 gap-y-px overflow-auto",
+            "bg-surface-sunken p-3.5 font-mono text-dense select-text",
+          )}
         >
           {visible.map((entry) => (
-            <div key={entry.id} className="flex gap-3 whitespace-pre-wrap">
-              {entry.timestamp ? (
-                <span className="shrink-0 tabular-nums text-muted">{formatWhen(entry.timestamp, "absolute")}</span>
-              ) : null}
+            <Fragment key={entry.id}>
+              <span className="tabular-nums text-subtle">
+                {entry.timestamp ? formatWhen(entry.timestamp, "absolute") : ""}
+              </span>
               <LevelTag level={entry.level} />
-              <span className="min-w-0 flex-1 break-words text-ink">{entry.message}</span>
-            </div>
+              <span className="min-w-0 break-words whitespace-pre-wrap text-ink">{entry.message}</span>
+            </Fragment>
           ))}
         </div>
       )}

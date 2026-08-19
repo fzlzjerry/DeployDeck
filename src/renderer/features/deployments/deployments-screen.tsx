@@ -10,6 +10,7 @@ import { WorkerTailPanel } from "@/components/logs/worker-tail";
 import { DetailRow, InspectorHeader, InspectorPanel, ScreenToolbar } from "@/components/ui/layout";
 import { ContextMenuContent, ContextMenuItem as MenuItem } from "@/components/ui/menu";
 import {
+  Badge,
   Button,
   Input,
   SelectControl,
@@ -136,7 +137,7 @@ export function DeploymentsScreen() {
             value={filters.environment ?? "all"}
             onValueChange={(environment) => setFilters({ environment: environment as never })}
             ariaLabel="Filter by environment"
-            className="w-36"
+            className="w-44"
             options={[
               { value: "all", label: "All environments" },
               { value: "production", label: "Production" },
@@ -157,16 +158,19 @@ export function DeploymentsScreen() {
               Reset {activeFilterCount}
             </Button>
           ) : null}
-          {query.isFetching && !query.isLoading ? <span className="ml-auto text-[11px] text-muted">Updating…</span> : null}
+          <div className="ml-auto flex shrink-0 items-center gap-3 text-dense text-muted">
+            {query.isFetching && !query.isLoading ? <span>Updating…</span> : null}
+            {query.isLoading ? null : (
+              <span className="tabular">
+                {items.length} {items.length === 1 ? "deployment" : "deployments"}
+              </span>
+            )}
+          </div>
         </ScreenToolbar>
         {query.isError ? (
           <ScreenError message={errorMessage(query.error)} onRetry={() => void query.refetch()} />
         ) : query.isLoading ? (
-          <div className="space-y-2 p-4">
-            {Array.from({ length: 8 }).map((_, index) => (
-              <Skeleton key={index} className="h-8" />
-            ))}
-          </div>
+          <DeploymentTableSkeleton />
         ) : items.length === 0 ? (
           <EmptyState
             title="No deployments match"
@@ -177,8 +181,14 @@ export function DeploymentsScreen() {
           <DeploymentTable items={items} />
         )}
         {query.hasNextPage ? (
-          <div className="border-t border-line p-2">
-            <Button variant="ghost" size="sm" onClick={() => void query.fetchNextPage()}>
+          <div className="flex min-h-12 shrink-0 items-center justify-between gap-3 border-t border-line bg-panel-header px-6 py-2">
+            <span className="text-dense text-muted tabular">{items.length} loaded</span>
+            <Button
+              variant="outline"
+              size="sm"
+              loading={query.isFetchingNextPage}
+              onClick={() => void query.fetchNextPage()}
+            >
               Load more
             </Button>
           </div>
@@ -198,6 +208,104 @@ export function DeploymentsScreen() {
   );
 }
 
+/**
+ * One source of truth for the column rails, so the loading skeleton cannot
+ * drift out of alignment with the real rows.
+ *
+ * Widths sum to TABLE_MIN_WIDTH. Because the table is `table-layout: fixed`
+ * at `width: 100%`, a wider window distributes the surplus proportionally, so
+ * Project and URL — the two columns that actually need room — grow with it.
+ */
+const COLUMNS = [
+  { key: "status", label: "Status", width: 104 },
+  { key: "provider", label: "Provider", width: 104 },
+  { key: "project", label: "Project", width: 180 },
+  { key: "env", label: "Env", width: 112 },
+  { key: "branch", label: "Branch", width: 132 },
+  { key: "commit", label: "Commit", width: 96 },
+  { key: "author", label: "Author", width: 104 },
+  { key: "time", label: "Time", width: 112, numeric: true },
+  { key: "duration", label: "Duration", width: 88, numeric: true },
+  { key: "url", label: "URL", width: 168 },
+] as const;
+
+const TABLE_MIN_WIDTH = COLUMNS.reduce((total, column) => total + column.width, 0);
+
+function ColumnRails() {
+  return (
+    <colgroup>
+      {COLUMNS.map((column) => (
+        <col key={column.key} style={{ width: column.width }} />
+      ))}
+    </colgroup>
+  );
+}
+
+function ColumnHeadings() {
+  return (
+    <thead>
+      <tr>
+        {COLUMNS.map((column) => (
+          <th key={column.key} data-numeric={"numeric" in column && column.numeric ? "" : undefined}>
+            {column.label}
+          </th>
+        ))}
+      </tr>
+    </thead>
+  );
+}
+
+/** Mirrors the real table so the layout does not shift when rows arrive. */
+function DeploymentTableSkeleton({ rows = 10 }: { rows?: number }) {
+  return (
+    <div className="min-h-0 flex-1 overflow-auto" role="status" aria-label="Loading deployments">
+      <table
+        className="data-table data-table-fixed"
+        style={{ minWidth: TABLE_MIN_WIDTH }}
+        aria-hidden="true"
+      >
+        <ColumnRails />
+        <ColumnHeadings />
+        <tbody>
+          {Array.from({ length: rows }).map((_, rowIndex) => (
+            <tr key={rowIndex}>
+              {COLUMNS.map((column, columnIndex) => (
+                <td key={column.key}>
+                  <Skeleton
+                    className="h-3"
+                    style={{ width: `${[62, 70, 78, 52, 66, 58, 72, 60, 48, 84][(rowIndex + columnIndex) % 10]}%` }}
+                  />
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+const TAB_LABEL = {
+  overview: "Overview",
+  build: "Build logs",
+  runtime: "Runtime logs",
+  domains: "Domains",
+  raw: "Raw payload",
+} as const;
+
+const ENVIRONMENT_LABEL: Record<string, string> = {
+  production: "Production",
+  preview: "Preview",
+  development: "Development",
+};
+
+function EnvironmentCell({ environment }: { environment: string }) {
+  const label = ENVIRONMENT_LABEL[environment] ?? environment;
+  // Production is the one environment where the distinction carries risk, so
+  // it is the only one that spends the accent.
+  return <Badge variant={environment === "production" ? "accent" : "outline"}>{label}</Badge>;
+}
+
 function DeploymentTable({ items }: { items: UnifiedDeployment[] }) {
   const prefs = usePrefs();
   const openDeployment = useUiStore((state) => state.openDeployment);
@@ -213,21 +321,15 @@ function DeploymentTable({ items }: { items: UnifiedDeployment[] }) {
 
   return (
     <div className="min-h-0 flex-1 overflow-auto">
-      <table className="data-table min-w-[1040px]" role="grid" aria-label="Deployments" aria-rowcount={items.length}>
-        <thead>
-          <tr>
-            <th>Status</th>
-            <th>Provider</th>
-            <th>Project</th>
-            <th>Env</th>
-            <th>Branch</th>
-            <th>Commit</th>
-            <th>Author</th>
-            <th>Time</th>
-            <th>Duration</th>
-            <th>URL</th>
-          </tr>
-        </thead>
+      <table
+        className="data-table data-table-fixed"
+        style={{ minWidth: TABLE_MIN_WIDTH }}
+        role="grid"
+        aria-label="Deployments"
+        aria-rowcount={items.length}
+      >
+        <ColumnRails />
+        <ColumnHeadings />
         <tbody>
           {items.map((item, index) => (
             <ContextMenu.Root key={`${item.provider}:${item.id}`}>
@@ -260,15 +362,15 @@ function DeploymentTable({ items }: { items: UnifiedDeployment[] }) {
                   }}
                 >
                   <td><StatusBadge state={item.state} /></td>
-                  <td><ProviderMark provider={item.provider} showIcon={prefs.data?.showProviderIcons} /></td>
-                  <td className="max-w-44 truncate font-medium">{item.projectName}</td>
-                  <td className="capitalize">{item.environment}</td>
-                  <td className="max-w-36 truncate">{item.branch ?? "—"}</td>
-                  <td className="font-mono">{shortSha(item.commitSha, prefs.data?.fullCommitSha)}</td>
-                  <td>{item.author ?? "—"}</td>
-                  <td className="tabular">{formatWhen(item.createdAt, prefs.data?.timeFormat ?? "relative")}</td>
-                  <td className="tabular">{formatDuration(item.durationMs)}</td>
-                  <td className="max-w-40 truncate text-muted">{item.url ?? "—"}</td>
+                  <td className="truncate"><ProviderMark provider={item.provider} showIcon={prefs.data?.showProviderIcons} /></td>
+                  <td className="truncate font-medium">{item.projectName}</td>
+                  <td><EnvironmentCell environment={item.environment} /></td>
+                  <td className="truncate">{item.branch ?? "—"}</td>
+                  <td className="font-mono text-dense">{shortSha(item.commitSha, prefs.data?.fullCommitSha)}</td>
+                  <td className="truncate text-muted">{item.author ?? "—"}</td>
+                  <td data-numeric>{formatWhen(item.createdAt, prefs.data?.timeFormat ?? "relative")}</td>
+                  <td data-numeric>{formatDuration(item.durationMs)}</td>
+                  <td className="truncate text-muted">{item.url ?? "—"}</td>
                 </tr>
               </ContextMenu.Trigger>
               <ContextMenu.Portal>
@@ -489,15 +591,16 @@ export function DeploymentDetail({ deployment }: { deployment: UnifiedDeployment
     >
       <TabsList aria-label="Deployment details">
         {(["overview", "build", "runtime", "domains", "raw"] as const).map((item) => (
-          <TabsTrigger
-            key={item}
-            value={item}
-          >
-            {item === "runtime" ? (deployment.provider === "cloudflare-workers" ? "Live tail" : "Runtime") : item}
+          <TabsTrigger key={item} value={item}>
+            {item === "runtime"
+              ? deployment.provider === "cloudflare-workers"
+                ? "Live tail"
+                : "Runtime logs"
+              : TAB_LABEL[item]}
           </TabsTrigger>
         ))}
       </TabsList>
-      <TabsContent value="overview" className="overflow-auto p-3 text-[12px]">
+      <TabsContent value="overview" className="overflow-auto p-4 text-dense">
         <dl className="divide-y divide-line/70">
           <DetailRow label="Status" value={<StatusBadge state={current.state} />} />
           <DetailRow label="Environment" value={current.environment} />
@@ -596,7 +699,7 @@ export function DeploymentDetail({ deployment }: { deployment: UnifiedDeployment
           <EmptyState title="No runtime tail" body="Pages deployments expose build logs. Use the Build tab." />
         ) : null}
       </TabsContent>
-      <TabsContent value="domains" className="overflow-auto p-3 text-[12px]">
+      <TabsContent value="domains" className="overflow-auto p-4 text-dense">
         <div className="divide-y divide-line/70">
           {(current.aliases.length > 0 ? current.aliases : [current.url]).filter(Boolean).map((alias) => (
             <div key={alias} className="flex min-h-9 items-center justify-between gap-2 py-1">
@@ -609,7 +712,7 @@ export function DeploymentDetail({ deployment }: { deployment: UnifiedDeployment
         </div>
       </TabsContent>
       <TabsContent value="raw" className="flex min-h-0 flex-1 flex-col">
-        <pre className="min-h-0 flex-1 overflow-auto p-3 font-mono text-[11px] select-text">
+        <pre className="min-h-0 flex-1 overflow-auto p-4 font-mono text-dense select-text">
           {JSON.stringify("metadata" in current ? (current as { metadata?: unknown }).metadata : current, null, 2)}
         </pre>
       </TabsContent>

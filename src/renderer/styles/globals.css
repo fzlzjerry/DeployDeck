@@ -5,91 +5,184 @@
 /*
  * Cold chassis, one warm lamp.
  * Neutrals sit on a single blue-steel hue so the amber indicator reads as a
- * signal rather than as brand decoration. Two accent roles, because the lit
- * amber is bright enough to fill a button but too bright to be text on light.
- *   --ember      fill of a lit control (always paired with --ember-fg)
- *   --ember-ink  accent for text and icons (always >= 4.5:1 on the surface)
+ * signal rather than as brand decoration.
+ *
+ * Every status colour splits into three roles, because a colour bright enough
+ * to fill an indicator is too bright to be text on a light surface:
+ *   --x        the dot / fill
+ *   --x-ink    text and icons, >= 4.5:1 on every surface it lands on
+ *   --x-soft   the pill wash --x-ink sits on
+ * Run `node scripts/contrast.mjs` after touching any of these.
  */
 :root {
+  /* Elevation: panels are raised above a recessed canvas, in both modes. */
+  --canvas: oklch(0.958 0.005 252);
   --bg: oklch(0.975 0.004 252);
+  --panel: oklch(0.995 0.002 252);
+  --panel-header: oklch(0.974 0.004 252);
   --surface: oklch(0.948 0.006 252);
   --surface-2: oklch(0.912 0.008 252);
   --surface-3: oklch(0.868 0.01 252);
   --surface-sunken: oklch(0.928 0.006 252);
+
   --ink: oklch(0.205 0.018 252);
   --muted: oklch(0.448 0.018 252);
   --subtle: oklch(0.505 0.016 252);
-  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
   --line: oklch(0.878 0.008 252);
+  --line-strong: oklch(0.828 0.01 252);
+
   --ember: oklch(0.735 0.173 60);
   --ember-hover: oklch(0.775 0.16 62);
-  --ember-active: oklch(0.695 0.168 58);
+  --ember-active: oklch(0.695 0.167 58);
   --ember-fg: oklch(0.17 0.03 60);
-  --ember-ink: oklch(0.53 0.127 58);
-  --ember-soft: oklch(0.938 0.045 66);
+  --ember-ink: oklch(0.51 0.123 58);
+  --ember-soft: oklch(0.945 0.034 58);
   --lamp-glow: oklch(0.735 0.173 60 / 0.38);
+
   --ready: oklch(0.51 0.119 158);
-  --ready-lamp: oklch(0.66 0.16 158);
-  --ready-soft: oklch(0.938 0.04 158);
+  --ready-lamp: oklch(0.66 0.155 158);
+  --ready-ink: oklch(0.485 0.114 158);
+  --ready-soft: oklch(0.945 0.047 158);
+
   --failed: oklch(0.545 0.175 25);
   --failed-hover: oklch(0.495 0.175 25);
   --failed-fg: oklch(0.98 0.008 25);
-  --failed-soft: oklch(0.938 0.04 25);
+  --failed-ink: oklch(0.52 0.175 25);
+  --failed-soft: oklch(0.945 0.027 25);
+
   --warning: oklch(0.53 0.112 75);
-  --queued: oklch(0.52 0.156 252);
+  --warning-ink: oklch(0.505 0.108 75);
+  --warning-soft: oklch(0.945 0.045 75);
+
   --building: oklch(0.53 0.116 68);
-  --canceled: oklch(0.545 0.012 252);
+  --building-ink: oklch(0.505 0.112 68);
+  --building-soft: oklch(0.945 0.039 68);
+
+  --queued: oklch(0.52 0.156 252);
+  --queued-ink: oklch(0.5 0.151 252);
+  --queued-soft: oklch(0.945 0.027 252);
+
+  --canceled: oklch(0.5 0.014 252);
+  --canceled-ink: oklch(0.5 0.014 252);
+  --canceled-soft: oklch(0.945 0.005 252);
+
   --focus-ring: oklch(0.53 0.127 58);
   --overlay: oklch(0.14 0.014 252 / 0.55);
-  --control: oklch(0.988 0.003 252);
-  --control-hover: oklch(0.935 0.007 252);
+  --control: oklch(0.998 0.001 252);
+  --control-hover: oklch(0.955 0.005 252);
+
   --shadow-popover: 0 10px 30px oklch(0.2 0.02 252 / 0.16), 0 1px 2px oklch(0.2 0.02 252 / 0.1);
   --chassis-wash: radial-gradient(125% 70% at 50% -18%, oklch(1 0 0 / 0.85), transparent 58%);
+
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
   --radius: 8px;
-  --sidebar: 232px;
+  --sidebar: 240px;
   --titlebar: 48px;
+
+  /* Semantic stacking order. Never use a bare numeric z-index. */
+  --z-sticky: 10;
+  --z-panel-overlay: 20;
+  --z-dropdown: 30;
+  --z-overlay: 40;
+  --z-modal: 50;
+  --z-toast: 60;
+  --z-tooltip: 70;
+
   --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", system-ui, sans-serif;
-  --mono: "SF Mono", ui-monospace, Menlo, Consolas, monospace;
+  --mono: "Geist Mono Variable", "SF Mono", ui-monospace, Menlo, Consolas, monospace;
 }
 
 .dark {
+  --canvas: oklch(0.118 0.011 252);
   --bg: oklch(0.135 0.011 252);
+  --panel: oklch(0.172 0.013 252);
+  --panel-header: oklch(0.15 0.012 252);
   --surface: oklch(0.171 0.013 252);
   --surface-2: oklch(0.212 0.015 252);
   --surface-3: oklch(0.262 0.016 252);
   --surface-sunken: oklch(0.105 0.01 252);
+
   --ink: oklch(0.955 0.006 252);
   --muted: oklch(0.705 0.014 252);
   --subtle: oklch(0.605 0.016 252);
   --line: oklch(0.315 0.014 252 / 0.7);
+  --line-strong: oklch(0.375 0.016 252 / 0.85);
+
   --ember: oklch(0.795 0.148 62);
-  --ember-hover: oklch(0.845 0.13 64);
+  --ember-hover: oklch(0.845 0.111 64);
   --ember-active: oklch(0.745 0.148 60);
   --ember-fg: oklch(0.17 0.03 60);
   --ember-ink: oklch(0.795 0.148 62);
-  --ember-soft: oklch(0.268 0.055 62);
+  --ember-soft: oklch(0.264 0.059 62);
   --lamp-glow: oklch(0.795 0.148 62 / 0.5);
+
   --ready: oklch(0.78 0.145 158);
   --ready-lamp: oklch(0.8 0.16 158);
-  --ready-soft: oklch(0.255 0.05 158);
+  --ready-ink: oklch(0.78 0.145 158);
+  --ready-soft: oklch(0.264 0.058 158);
+
   --failed: oklch(0.705 0.17 22);
-  --failed-hover: oklch(0.765 0.15 22);
+  --failed-hover: oklch(0.765 0.139 22);
   --failed-fg: oklch(0.16 0.02 22);
-  --failed-soft: oklch(0.262 0.055 22);
+  --failed-ink: oklch(0.745 0.155 22);
+  --failed-soft: oklch(0.264 0.06 22);
+
   --warning: oklch(0.82 0.135 78);
-  --queued: oklch(0.72 0.1 252);
+  --warning-ink: oklch(0.82 0.135 78);
+  --warning-soft: oklch(0.264 0.054 78);
+
   --building: oklch(0.8 0.142 68);
+  --building-ink: oklch(0.8 0.142 68);
+  --building-soft: oklch(0.264 0.057 68);
+
+  --queued: oklch(0.72 0.1 252);
+  --queued-ink: oklch(0.75 0.1 252);
+  --queued-soft: oklch(0.264 0.04 252);
+
   --canceled: oklch(0.64 0.012 252);
+  --canceled-ink: oklch(0.715 0.012 252);
+  --canceled-soft: oklch(0.264 0.006 252);
+
   --focus-ring: oklch(0.795 0.148 62);
   --overlay: oklch(0.05 0.012 252 / 0.72);
   --control: oklch(0.158 0.012 252);
   --control-hover: oklch(0.2 0.014 252);
+
   --shadow-popover: 0 12px 34px oklch(0.02 0.01 252 / 0.62), 0 1px 2px oklch(0.02 0.01 252 / 0.5);
   --chassis-wash: radial-gradient(125% 72% at 50% -16%, oklch(0.82 0.035 252 / 0.1), transparent 60%);
 }
 
+/*
+ * Fixed scale, no fluid clamp: product UI is viewed at a consistent DPI.
+ * Steps run 12 -> 14 -> 16 -> 20. `micro` is the floor; there is no 10px tier.
+ * `console` is reserved for the first-run console heading.
+ */
+@theme {
+  /* Cards top out at 12px; controls stay at 8px. */
+  --radius-panel: 12px;
+  --radius-control: 8px;
+
+  --text-micro: 11px;
+  --text-micro--line-height: 16px;
+  --text-label: 12px;
+  --text-label--line-height: 16px;
+  --text-dense: 13px;
+  --text-dense--line-height: 18px;
+  --text-body: 14px;
+  --text-body--line-height: 20px;
+  --text-section: 16px;
+  --text-section--line-height: 22px;
+  --text-title: 20px;
+  --text-title--line-height: 26px;
+  --text-console: 24px;
+  --text-console--line-height: 30px;
+}
+
 @theme inline {
+  --color-canvas: var(--canvas);
   --color-bg: var(--bg);
+  --color-panel: var(--panel);
+  --color-panel-header: var(--panel-header);
   --color-surface: var(--surface);
   --color-surface-2: var(--surface-2);
   --color-surface-3: var(--surface-3);
@@ -98,6 +191,7 @@
   --color-muted: var(--muted);
   --color-subtle: var(--subtle);
   --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
   --color-ember: var(--ember);
   --color-ember-hover: var(--ember-hover);
   --color-ember-active: var(--ember-active);
@@ -106,15 +200,25 @@
   --color-ember-soft: var(--ember-soft);
   --color-ready: var(--ready);
   --color-ready-lamp: var(--ready-lamp);
+  --color-ready-ink: var(--ready-ink);
   --color-ready-soft: var(--ready-soft);
   --color-failed: var(--failed);
   --color-failed-hover: var(--failed-hover);
   --color-failed-fg: var(--failed-fg);
+  --color-failed-ink: var(--failed-ink);
   --color-failed-soft: var(--failed-soft);
   --color-warning: var(--warning);
-  --color-queued: var(--queued);
+  --color-warning-ink: var(--warning-ink);
+  --color-warning-soft: var(--warning-soft);
   --color-building: var(--building);
+  --color-building-ink: var(--building-ink);
+  --color-building-soft: var(--building-soft);
+  --color-queued: var(--queued);
+  --color-queued-ink: var(--queued-ink);
+  --color-queued-soft: var(--queued-soft);
   --color-canceled: var(--canceled);
+  --color-canceled-ink: var(--canceled-ink);
+  --color-canceled-soft: var(--canceled-soft);
   --color-control: var(--control);
   --color-control-hover: var(--control-hover);
   --font-sans: var(--font);
@@ -133,11 +237,11 @@ body,
 
 body {
   margin: 0;
-  background: var(--bg);
+  background: var(--canvas);
   color: var(--ink);
   font-family: var(--font);
-  font-size: 13px;
-  line-height: 1.4;
+  font-size: var(--text-body);
+  line-height: 20px;
   letter-spacing: -0.01em;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
@@ -180,11 +284,11 @@ select {
 }
 
 .compact {
-  --row-h: 32px;
+  --row-h: 36px;
 }
 
 .comfortable {
-  --row-h: 40px;
+  --row-h: 44px;
 }
 
 ::selection {
@@ -213,35 +317,52 @@ button:not(:disabled),
   cursor: default;
 }
 
+/* `--table-bg` lets the sticky header match whatever the table sits on: the
+   canvas when full-bleed, the panel when nested inside one. */
 .data-table {
+  --table-bg: var(--canvas);
   width: 100%;
   border-collapse: separate;
   border-spacing: 0;
   text-align: left;
-  font-size: 12px;
+  font-size: var(--text-body);
 }
 
 .data-table thead {
   position: sticky;
   top: 0;
-  z-index: 1;
-  background: var(--bg);
+  z-index: var(--z-sticky);
+  background: var(--table-bg);
 }
 
 .data-table th {
-  height: 34px;
-  padding: 0 12px;
+  height: 38px;
+  padding: 0 14px;
   border-bottom: 1px solid var(--line);
   color: var(--muted);
+  font-size: var(--text-label);
   font-weight: 500;
   white-space: nowrap;
 }
 
 .data-table td {
-  height: var(--row-h, 36px);
-  padding: 0 12px;
+  height: var(--row-h, 40px);
+  padding: 0 14px;
   border-bottom: 1px solid color-mix(in oklch, var(--line) 72%, transparent);
   white-space: nowrap;
+}
+
+/* Numeric and time columns share one rail so digits line up down the page. */
+.data-table th[data-numeric],
+.data-table td[data-numeric] {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Makes <colgroup> widths authoritative, so `truncate` works on any cell
+   without repeating each column width as a max-width utility. */
+.data-table-fixed {
+  table-layout: fixed;
 }
 
 .data-table tbody tr {
@@ -267,7 +388,7 @@ button:not(:disabled),
 }
 
 .deployment-inspector {
-  width: clamp(360px, 36vw, 420px);
+  width: clamp(380px, 36vw, 440px);
 }
 
 @media (max-width: 1180px) {
@@ -275,20 +396,22 @@ button:not(:disabled),
     position: absolute;
     inset-block: 0;
     right: 0;
-    z-index: 20;
-    width: min(420px, 58vw);
-    background: var(--bg);
+    z-index: var(--z-panel-overlay);
+    width: min(440px, 58vw);
+    background: var(--canvas);
   }
 }
 
 .modal-overlay {
   position: fixed;
   inset: 0;
+  z-index: var(--z-overlay);
   background: var(--overlay);
   animation: overlay-in 160ms var(--ease-out-expo);
 }
 
 .modal-content {
+  z-index: var(--z-modal);
   animation: dialog-in 190ms var(--ease-out-expo);
   box-shadow: var(--shadow-popover);
 }
@@ -301,7 +424,7 @@ button:not(:disabled),
 .dd-toaster [data-sonner-toast] {
   border: 1px solid var(--line) !important;
   border-radius: var(--radius) !important;
-  background: var(--surface) !important;
+  background: var(--panel) !important;
   color: var(--ink) !important;
   box-shadow: var(--shadow-popover) !important;
   font-family: var(--font) !important;
@@ -314,7 +437,7 @@ button:not(:disabled),
 .command-group [cmdk-group-heading] {
   padding: 10px 10px 5px;
   color: var(--subtle);
-  font-size: 11px;
+  font-size: var(--text-micro);
   font-weight: 500;
 }
 

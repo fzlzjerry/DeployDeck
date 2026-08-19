@@ -17,15 +17,15 @@ export function ConfirmDialog() {
   return (
     <AlertDialog.Root open={Boolean(confirm)} onOpenChange={(open) => !open && !pending && close()}>
       <AlertDialog.Portal>
-        <AlertDialog.Overlay className="modal-overlay z-40" />
-        <AlertDialog.Content className="modal-content fixed top-1/2 left-1/2 z-50 w-[min(420px,calc(100vw-40px))] -translate-x-1/2 -translate-y-1/2 rounded-xl bg-bg p-5 outline-none">
-          <AlertDialog.Title className="text-[15px] font-semibold tracking-[-0.015em]">
+        <AlertDialog.Overlay className="modal-overlay" />
+        <AlertDialog.Content className="modal-content fixed top-1/2 left-1/2 w-[min(440px,calc(100vw-40px))] -translate-x-1/2 -translate-y-1/2 rounded-panel bg-panel p-5 outline-none">
+          <AlertDialog.Title className="text-section font-semibold tracking-[-0.015em] text-ink">
             {confirm?.title}
           </AlertDialog.Title>
-          <AlertDialog.Description className="mt-2 max-w-[48ch] text-[13px] leading-5 text-muted">
+          <AlertDialog.Description className="mt-2 max-w-[52ch] text-pretty text-dense text-muted">
             {confirm?.body}
           </AlertDialog.Description>
-          <div className="mt-5 flex justify-end gap-2">
+          <div className="mt-6 flex justify-end gap-2">
             <AlertDialog.Cancel asChild>
               <Button variant="ghost" disabled={pending}>Cancel</Button>
             </AlertDialog.Cancel>

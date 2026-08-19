@@ -52,8 +52,10 @@ export function LampReadout({ state, className }: { state: LampState; className?
         role="status"
         aria-live="polite"
         className={cn(
-          "font-mono text-[11px] tracking-[0.02em]",
-          state === "live" ? "text-ready" : state === "fault" ? "text-failed" : "text-subtle",
+          "font-mono text-micro tracking-[0.02em]",
+          // The `-ink` roles, not the lamp fills: this is text, and it can land
+          // on a sunken bezel where the fills are not verified.
+          state === "live" ? "text-ready-ink" : state === "fault" ? "text-failed-ink" : "text-subtle",
         )}
       >
         {LAMP_LABEL[state]}

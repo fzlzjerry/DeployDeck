@@ -1,17 +1,19 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ExternalLink } from "lucide-react";
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { ExternalLink, Search } from "lucide-react";
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import type { EnvironmentVariable, UnifiedProject, WorkerScript } from "@shared/models";
 import { EmptyState, ScreenError } from "@/components/common/empty-state";
 import { DomainVerification } from "@/components/domains/domain-verification";
 import { WorkerTailPanel } from "@/components/logs/worker-tail";
 import { ProviderMark, StatusBadge } from "@/components/common/status-badge";
 import { DetailRow, InspectorHeader, InspectorPanel, ScreenToolbar } from "@/components/ui/layout";
+import { PanelRow } from "@/components/ui/panel";
 import {
   Button,
   Input,
   SelectControl,
   Skeleton,
+  TableSkeleton,
   Tabs,
   TabsContent,
   TabsList,
@@ -132,14 +134,23 @@ export function ProjectsScreen() {
     <div className="relative flex h-full min-h-0">
       <div className="flex min-w-0 flex-1 flex-col">
         <ScreenToolbar role="search" aria-label="Filter projects and workers">
-          <Input
-            type="search"
-            aria-label="Search projects and workers"
-            placeholder="Search projects and workers"
-            className="w-64"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-          />
+          <div className="relative w-72">
+            {/* Matches the Deployments search field, which had the icon and
+                this one did not. */}
+            <Search
+              className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted"
+              strokeWidth={1.75}
+              aria-hidden
+            />
+            <Input
+              type="search"
+              aria-label="Search projects and workers"
+              placeholder="Search projects and workers"
+              className="pl-8"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+            />
+          </div>
           <SelectControl
             ariaLabel="Filter by provider"
             className="w-44"
@@ -152,17 +163,13 @@ export function ProjectsScreen() {
               Reset filters
             </Button>
           ) : null}
-          <span className="ml-auto text-[11px] text-muted tabular" aria-live="polite">
+          <span className="ml-auto text-dense text-muted tabular" aria-live="polite">
             {projects.isFetching && !projects.isLoading ? "Updating…" : `${entries.length} shown`}
           </span>
         </ScreenToolbar>
 
         {projects.isLoading ? (
-          <div className="space-y-2 p-4" aria-label="Loading projects">
-            {Array.from({ length: 8 }).map((_, index) => (
-              <Skeleton key={index} className="h-8" />
-            ))}
-          </div>
+          <TableSkeleton columns={6} rows={10} label="Loading projects" />
         ) : entries.length === 0 ? (
           <EmptyState
             title={hasFilters ? "No projects match" : "No projects found"}
@@ -234,7 +241,15 @@ function ProjectsTable({
 
   return (
     <div className="min-h-0 flex-1 overflow-auto">
-      <table className="data-table min-w-[820px]" aria-label="Projects and workers">
+      <table className="data-table data-table-fixed min-w-[900px]" aria-label="Projects and workers">
+        <colgroup>
+          <col style={{ width: 116 }} />
+          <col />
+          <col style={{ width: 176 }} />
+          <col style={{ width: 156 }} />
+          <col style={{ width: 148 }} />
+          <col style={{ width: 128 }} />
+        </colgroup>
         <thead>
           <tr>
             <th>Provider</th>
@@ -242,7 +257,7 @@ function ProjectsTable({
             <th>Account</th>
             <th>Production branch</th>
             <th>State or version</th>
-            <th>Updated</th>
+            <th data-numeric>Updated</th>
           </tr>
         </thead>
         <tbody>
@@ -286,29 +301,27 @@ function ProjectsTable({
                   }
                 }}
               >
-                <td>
+                <td className="truncate">
                   <ProviderMark
                     provider={entry.kind === "project" ? entry.item.provider : "cloudflare-workers"}
                     showIcon={showProviderIcons}
                   />
                 </td>
-                <td className="max-w-56">
-                  <span className="block truncate font-medium text-ink">{item.name}</span>
+                <td className="truncate font-medium text-ink">{item.name}</td>
+                <td className="truncate text-muted">{item.accountName}</td>
+                <td className="truncate font-mono text-dense">
+                  {entry.kind === "project" ? entry.item.productionBranch ?? "—" : "—"}
                 </td>
-                <td className="max-w-52">
-                  <span className="block truncate text-muted">{item.accountName}</span>
-                </td>
-                <td>{entry.kind === "project" ? entry.item.productionBranch ?? "—" : "—"}</td>
                 <td>
                   {entry.kind === "project" ? (
                     entry.item.latestDeploymentState ? <StatusBadge state={entry.item.latestDeploymentState} /> : "—"
                   ) : entry.item.activeVersionId ? (
-                    <span className="font-mono">{entry.item.activeVersionId.slice(0, 8)}</span>
+                    <span className="font-mono text-dense">{entry.item.activeVersionId.slice(0, 8)}</span>
                   ) : (
                     "—"
                   )}
                 </td>
-                <td className="text-muted tabular">
+                <td data-numeric className="text-muted">
                   {formatWhen(entry.kind === "project" ? entry.item.updatedAt : entry.item.modifiedOn, timeFormat)}
                 </td>
               </tr>
@@ -370,8 +383,8 @@ function ProjectDetail({ project }: { project: UnifiedProject }) {
         <TabsTrigger value="settings">Settings</TabsTrigger>
       </TabsList>
 
-      <TabsContent value="overview" className="overflow-auto p-3">
-        <dl className="divide-y divide-line/70 text-[12px]">
+      <TabsContent value="overview" className="overflow-auto p-4">
+        <dl className="divide-y divide-line/70">
           <DetailRow label="Framework" value={project.framework ?? "—"} />
           <DetailRow label="Production branch" value={project.productionBranch ?? "—"} mono />
           <DetailRow label="Root directory" value={project.rootDirectory ?? "—"} mono />
@@ -399,11 +412,11 @@ function ProjectDetail({ project }: { project: UnifiedProject }) {
       <TabsContent value="environment" className="overflow-auto">
         <ProjectEnv project={project} />
       </TabsContent>
-      <TabsContent value="settings" className="overflow-auto p-3">
-        <p className="max-w-[52ch] text-[12px] leading-5 text-muted">
+      <TabsContent value="settings" className="overflow-auto p-4">
+        <p className="max-w-[56ch] text-pretty text-dense text-muted">
           This view shows the provider configuration DeployDeck uses. Advanced project settings remain in the provider dashboard.
         </p>
-        <dl className="mt-3 divide-y divide-line/70 text-[12px]">
+        <dl className="mt-3 divide-y divide-line/70">
           <DetailRow label="Production URL" value={project.productionUrl ?? "—"} />
           <DetailRow label="Domains" value={project.domains.join(", ") || "—"} />
         </dl>
@@ -486,32 +499,25 @@ function ProjectDeployments({ project }: { project: UnifiedProject }) {
   if (query.isError) return <InlineError message={errorMessage(query.error)} onRetry={() => void query.refetch()} />;
 
   const items = query.data?.items ?? [];
+  if (items.length === 0) return <PanelMessage>No deployments are available for this project.</PanelMessage>;
+
   return (
-    <div className="p-3">
-      {items.length === 0 ? (
-        <PanelMessage>No deployments are available for this project.</PanelMessage>
-      ) : (
-        <div className="divide-y divide-line/70">
-          {items.map((item) => (
-            <button
-              type="button"
-              key={item.id}
-              className={cn(
-                "-mx-2 flex min-h-10 w-full items-center justify-between gap-3 rounded-md px-2 py-2 text-left",
-                "transition-colors duration-150 ease-[var(--ease-out-expo)] motion-reduce:transition-none",
-                "hover:bg-surface focus-visible:bg-surface focus-visible:outline-none",
-                "focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]",
-              )}
-              onClick={() => openDeployment(item)}
-            >
-              <StatusBadge state={item.state} />
-              <span className="min-w-0 flex-1 truncate text-[12px]">{item.commitMessage ?? item.id}</span>
-              <span className="shrink-0 text-[11px] text-muted tabular">{formatWhen(item.createdAt, "relative")}</span>
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
+    <InspectorList>
+      {items.map((item) => (
+        <PanelRow
+          key={item.id}
+          onActivate={() => openDeployment(item)}
+          activateLabel={`Inspect deployment ${item.id}`}
+          leading={<StatusBadge state={item.state} />}
+          title={item.commitMessage ?? item.id}
+          trailing={
+            <time className="text-dense text-muted tabular" dateTime={item.createdAt}>
+              {formatWhen(item.createdAt, "relative")}
+            </time>
+          }
+        />
+      ))}
+    </InspectorList>
   );
 }
 
@@ -547,21 +553,23 @@ function ProjectDomains({ project }: { project: UnifiedProject }) {
   };
 
   return (
-    <div className="space-y-3 p-3">
-      <form className="flex gap-2" onSubmit={(event) => void addDomain(event)}>
-        <Input
-          type="text"
-          aria-label="Domain name"
-          value={name}
-          onChange={(event) => setName(event.target.value)}
-          placeholder="example.com"
-          autoCapitalize="none"
-          spellCheck={false}
-        />
-        <Button size="sm" type="submit" loading={pending} disabled={!name.trim()}>
-          Add domain
-        </Button>
-      </form>
+    <div>
+      <InspectorBlock>
+        <form className="flex gap-2" onSubmit={(event) => void addDomain(event)}>
+          <Input
+            type="text"
+            aria-label="Domain name"
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            placeholder="example.com"
+            autoCapitalize="none"
+            spellCheck={false}
+          />
+          <Button type="submit" loading={pending} disabled={!name.trim()}>
+            Add domain
+          </Button>
+        </form>
+      </InspectorBlock>
 
       {query.isLoading ? (
         <PanelLoading compact />
@@ -570,13 +578,13 @@ function ProjectDomains({ project }: { project: UnifiedProject }) {
       ) : (query.data ?? []).length === 0 ? (
         <PanelMessage>No domains are attached to this project.</PanelMessage>
       ) : (
-        <div className="divide-y divide-line/70 border-t border-line">
+        <InspectorList>
           {(query.data ?? []).map((domain) => (
-            <div key={domain.id} className="py-2 text-[12px]">
+            <div key={domain.id} className="px-4 py-2">
               <div className="flex min-h-11 items-center justify-between gap-3">
               <div className="min-w-0">
-                <p className="truncate font-medium select-text">{domain.name}</p>
-                <p className="mt-0.5 text-[11px] text-muted">{domain.status}</p>
+                <p className="truncate text-body font-medium select-text">{domain.name}</p>
+                <p className="mt-0.5 truncate text-label text-muted">{domain.status}</p>
               </div>
               <div className="flex shrink-0 items-center gap-1">
                 <Button size="sm" variant="ghost" onClick={() => void window.deployDeck.shell.openHttps(`https://${domain.name}`)}>
@@ -618,7 +626,7 @@ function ProjectDomains({ project }: { project: UnifiedProject }) {
                 <Button
                   size="sm"
                   variant="ghost"
-                  className="text-failed hover:bg-failed-soft"
+                  className="text-failed-ink hover:bg-failed-soft"
                   onClick={() =>
                     ask({
                       title: "Remove domain",
@@ -641,13 +649,15 @@ function ProjectDomains({ project }: { project: UnifiedProject }) {
                 </Button>
               </div>
               </div>
-              <DomainVerification
-                domain={domain}
-                onWritten={() => void client.invalidateQueries({ queryKey: ["dns-records"] })}
-              />
+              <div className="pb-1">
+                <DomainVerification
+                  domain={domain}
+                  onWritten={() => void client.invalidateQueries({ queryKey: ["dns-records"] })}
+                />
+              </div>
             </div>
           ))}
-        </div>
+        </InspectorList>
       )}
     </div>
   );
@@ -736,52 +746,54 @@ function ProjectEnv({ project }: { project: UnifiedProject }) {
   };
 
   return (
-    <div className="space-y-3 p-3">
-      <form className="space-y-2" onSubmit={(event) => void saveVariable(event)}>
-        <div className="grid grid-cols-2 gap-2">
-          <Input
-            aria-label="Environment variable key"
-            placeholder="KEY"
-            className="font-mono"
-            value={key}
-            onChange={(event) => setKey(event.target.value)}
-            autoCapitalize="none"
-            spellCheck={false}
-          />
-          <Input
-            aria-label="Environment variable value"
-            placeholder="Value"
-            value={value}
-            onChange={(event) => setValue(event.target.value)}
-          />
-        </div>
-        <div className="flex items-center gap-2">
-          <SelectControl
-            ariaLabel="Environment target"
-            className="w-40"
-            value={target}
-            onValueChange={(next) => setTarget(next as typeof target)}
-            options={targetOptions}
-          />
-          {project.provider === "vercel" ? (
+    <div>
+      <InspectorBlock>
+        <form className="space-y-2.5" onSubmit={(event) => void saveVariable(event)}>
+          <div className="grid grid-cols-2 gap-2">
             <Input
-              aria-label="Git branch"
-              placeholder="Branch (optional)"
-              className="w-40 font-mono"
-              value={branch}
-              onChange={(event) => setBranch(event.target.value)}
+              aria-label="Environment variable key"
+              placeholder="KEY"
+              className="font-mono"
+              value={key}
+              onChange={(event) => setKey(event.target.value)}
+              autoCapitalize="none"
+              spellCheck={false}
             />
-          ) : null}
-          {editing ? (
-            <Button size="sm" variant="ghost" className="text-muted" type="button" onClick={resetEditor}>
-              Cancel
+            <Input
+              aria-label="Environment variable value"
+              placeholder="Value"
+              value={value}
+              onChange={(event) => setValue(event.target.value)}
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <SelectControl
+              ariaLabel="Environment target"
+              className="w-40"
+              value={target}
+              onValueChange={(next) => setTarget(next as typeof target)}
+              options={targetOptions}
+            />
+            {project.provider === "vercel" ? (
+              <Input
+                aria-label="Git branch"
+                placeholder="Branch (optional)"
+                className="w-40 font-mono"
+                value={branch}
+                onChange={(event) => setBranch(event.target.value)}
+              />
+            ) : null}
+            {editing ? (
+              <Button variant="ghost" className="text-muted" type="button" onClick={resetEditor}>
+                Cancel
+              </Button>
+            ) : null}
+            <Button type="submit" loading={pending} disabled={!key.trim() || !value}>
+              {editing ? "Update variable" : "Save variable"}
             </Button>
-          ) : null}
-          <Button size="sm" type="submit" loading={pending} disabled={!key.trim() || !value}>
-            {editing ? "Update variable" : "Save variable"}
-          </Button>
-        </div>
-      </form>
+          </div>
+        </form>
+      </InspectorBlock>
 
       {query.isLoading ? (
         <PanelLoading compact />
@@ -790,7 +802,7 @@ function ProjectEnv({ project }: { project: UnifiedProject }) {
       ) : (query.data ?? []).length === 0 ? (
         <PanelMessage>No variables exist for this target.</PanelMessage>
       ) : (
-        <div className="divide-y divide-line/70 border-t border-line">
+        <InspectorList>
           {(query.data ?? []).map((item) => (
             <EnvRow
               key={item.id}
@@ -817,7 +829,7 @@ function ProjectEnv({ project }: { project: UnifiedProject }) {
               }
             />
           ))}
-        </div>
+        </InspectorList>
       )}
     </div>
   );
@@ -840,14 +852,14 @@ function EnvRow({
   const ask = useUiStore((state) => state.askConfirm);
 
   return (
-    <div className="flex min-h-12 items-center justify-between gap-3 py-2 text-[12px]">
+    <div className="flex min-h-14 items-center justify-between gap-3 px-4 py-2">
       <div className="min-w-0 select-text">
-        <p className="truncate font-mono font-medium">{item.key}</p>
-        <p className="mt-0.5 truncate text-[11px] text-muted">
+        <p className="truncate font-mono text-body font-medium">{item.key}</p>
+        <p className="mt-0.5 truncate text-label text-muted">
           {item.type} · {item.targets.join(", ")}
           {item.branch ? ` · ${item.branch}` : ""}
         </p>
-        <p className="mt-0.5 truncate font-mono text-[11px]">{revealed ?? item.value ?? "••••••"}</p>
+        <p className="mt-0.5 truncate font-mono text-dense text-muted">{revealed ?? item.value ?? "••••••"}</p>
       </div>
       <div className="flex shrink-0 gap-1">
         <Button size="sm" variant="ghost" aria-pressed={editing || undefined} onClick={onEdit}>
@@ -876,7 +888,7 @@ function EnvRow({
         <Button
           size="sm"
           variant="ghost"
-          className="text-failed hover:bg-failed-soft"
+          className="text-failed-ink hover:bg-failed-soft"
           onClick={() =>
             ask({
               title: "Delete variable",
@@ -993,7 +1005,7 @@ function WorkerDetail({ accountId, name }: { accountId: string; name: string }) 
         <TabsTrigger value="secrets">Secrets</TabsTrigger>
       </TabsList>
 
-      <TabsContent value="versions" className="overflow-auto p-3">
+      <TabsContent value="versions" className="overflow-auto">
         {versions.isLoading ? (
           <PanelLoading compact />
         ) : versions.isError ? (
@@ -1001,11 +1013,11 @@ function WorkerDetail({ accountId, name }: { accountId: string; name: string }) 
         ) : (versions.data ?? []).length === 0 ? (
           <PanelMessage>No Worker versions are available.</PanelMessage>
         ) : (
-          <div className="space-y-3">
-            <div className="flex items-center gap-2">
+          <div>
+            <InspectorBlock className="flex flex-wrap items-center gap-2.5">
               <SelectControl
                 ariaLabel="Traffic share for the next deploy"
-                className="w-36"
+                className="w-40"
                 value={deployShare}
                 onValueChange={setDeployShare}
                 options={[
@@ -1016,18 +1028,18 @@ function WorkerDetail({ accountId, name }: { accountId: string; name: string }) 
                   { value: "100", label: "100% traffic" },
                 ]}
               />
-              <p className="text-[11px] text-muted">
+              <p className="min-w-0 flex-1 text-dense text-muted">
                 {selectedShare < 100
                   ? `Remainder stays on ${activeVersion ? activeVersion.id.slice(0, 8) : "the current version"}.`
                   : "Replace all live traffic with the chosen version."}
               </p>
-            </div>
-            <div className="divide-y divide-line/70 border-t border-line">
+            </InspectorBlock>
+            <InspectorList>
               {(versions.data ?? []).map((version) => (
-                <div key={version.id} className="flex min-h-10 items-center justify-between gap-3 py-2 text-[12px]">
+                <div key={version.id} className="flex min-h-11 items-center justify-between gap-3 px-4 py-2">
                   <div className="min-w-0">
                     <p className="truncate font-mono select-text">{version.id.slice(0, 12)}</p>
-                    <p className="mt-0.5 text-[11px] text-muted">
+                    <p className="mt-0.5 truncate text-label text-muted">
                       {version.trafficPercent !== undefined ? `${version.trafficPercent}% traffic` : "No active traffic"}
                     </p>
                   </div>
@@ -1068,12 +1080,12 @@ function WorkerDetail({ accountId, name }: { accountId: string; name: string }) 
                   </Button>
                 </div>
               ))}
-            </div>
+            </InspectorList>
           </div>
         )}
       </TabsContent>
 
-      <TabsContent value="deployments" className="overflow-auto p-3">
+      <TabsContent value="deployments" className="overflow-auto">
         {deployments.isLoading ? (
           <PanelLoading compact />
         ) : deployments.isError ? (
@@ -1081,12 +1093,12 @@ function WorkerDetail({ accountId, name }: { accountId: string; name: string }) 
         ) : (deployments.data ?? []).length === 0 ? (
           <PanelMessage>No Worker deployments are available.</PanelMessage>
         ) : (
-          <div className="divide-y divide-line/70">
+          <InspectorList>
             {(deployments.data ?? []).map((item) => (
-              <div key={item.id} className="flex min-h-10 items-center justify-between gap-3 py-2 text-[12px]">
+              <div key={item.id} className="flex min-h-11 items-center justify-between gap-3 px-4 py-2">
                 <div className="min-w-0">
                   <p className="truncate font-mono select-text">{item.id.slice(0, 12)}</p>
-                  <p className="mt-0.5 truncate text-[11px] text-muted">
+                  <p className="mt-0.5 truncate text-label text-muted">
                     {formatWhen(item.createdOn, timeFormat)} · {item.source ?? "unknown source"}
                   </p>
                 </div>
@@ -1111,7 +1123,7 @@ function WorkerDetail({ accountId, name }: { accountId: string; name: string }) 
                 </Button>
               </div>
             ))}
-          </div>
+          </InspectorList>
         )}
       </TabsContent>
 
@@ -1121,51 +1133,53 @@ function WorkerDetail({ accountId, name }: { accountId: string; name: string }) 
         </TabsContent>
       ) : null}
 
-      {canRoutes ? <TabsContent value="routes" className="overflow-auto p-3">
-        <form
-          className="mb-3 space-y-2"
-          onSubmit={async (event) => {
-            event.preventDefault();
-            const pattern = routePattern.trim();
-            const zoneId = routeZoneId || zoneOptions[0]?.value;
-            if (!pattern || !zoneId || savingRoute) return;
-            setSavingRoute(true);
-            try {
-              await window.deployDeck.cloudflare.createWorkerRoute(accountId, name, zoneId, pattern);
-              setRoutePattern("");
-              await client.invalidateQueries({ queryKey: ["worker-routes", accountId, name] });
-              toast.success("Worker route added");
-            } catch (error) {
-              toast.error(errorMessage(error));
-            } finally {
-              setSavingRoute(false);
-            }
-          }}
-        >
-          <div className="grid grid-cols-2 gap-2">
-            <SelectControl
-              ariaLabel="Zone for this route"
-              className="w-full"
-              value={routeZoneId || zoneOptions[0]?.value || ""}
-              onValueChange={setRouteZoneId}
-              options={zoneOptions}
-              placeholder="Select zone"
-              disabled={zoneOptions.length === 0}
-            />
-            <Input
-              aria-label="Route pattern"
-              value={routePattern}
-              onChange={(event) => setRoutePattern(event.target.value)}
-              placeholder="example.com/*"
-              className="font-mono"
-              autoCapitalize="none"
-              spellCheck={false}
-            />
-          </div>
-          <Button size="sm" type="submit" loading={savingRoute} disabled={!routePattern.trim() || zoneOptions.length === 0}>
-            Add route
-          </Button>
-        </form>
+      {canRoutes ? <TabsContent value="routes" className="overflow-auto">
+        <InspectorBlock>
+          <form
+            className="space-y-2.5"
+            onSubmit={async (event) => {
+              event.preventDefault();
+              const pattern = routePattern.trim();
+              const zoneId = routeZoneId || zoneOptions[0]?.value;
+              if (!pattern || !zoneId || savingRoute) return;
+              setSavingRoute(true);
+              try {
+                await window.deployDeck.cloudflare.createWorkerRoute(accountId, name, zoneId, pattern);
+                setRoutePattern("");
+                await client.invalidateQueries({ queryKey: ["worker-routes", accountId, name] });
+                toast.success("Worker route added");
+              } catch (error) {
+                toast.error(errorMessage(error));
+              } finally {
+                setSavingRoute(false);
+              }
+            }}
+          >
+            <div className="grid grid-cols-2 gap-2">
+              <SelectControl
+                ariaLabel="Zone for this route"
+                className="w-full"
+                value={routeZoneId || zoneOptions[0]?.value || ""}
+                onValueChange={setRouteZoneId}
+                options={zoneOptions}
+                placeholder="Select zone"
+                disabled={zoneOptions.length === 0}
+              />
+              <Input
+                aria-label="Route pattern"
+                value={routePattern}
+                onChange={(event) => setRoutePattern(event.target.value)}
+                placeholder="example.com/*"
+                className="font-mono"
+                autoCapitalize="none"
+                spellCheck={false}
+              />
+            </div>
+            <Button size="sm" type="submit" loading={savingRoute} disabled={!routePattern.trim() || zoneOptions.length === 0}>
+              Add route
+            </Button>
+          </form>
+        </InspectorBlock>
         {routes.isLoading ? (
           <PanelLoading compact />
         ) : routes.isError ? (
@@ -1173,17 +1187,17 @@ function WorkerDetail({ accountId, name }: { accountId: string; name: string }) 
         ) : (routes.data ?? []).length === 0 ? (
           <PanelMessage>No routes are attached to this Worker.</PanelMessage>
         ) : (
-          <div className="divide-y divide-line/70 border-t border-line">
+          <InspectorList>
             {(routes.data ?? []).map((route) => (
-              <div key={route.id} className="flex min-h-10 items-center justify-between gap-3 py-2 text-[12px]">
+              <div key={route.id} className="flex min-h-11 items-center justify-between gap-3 px-4 py-2">
                 <div className="min-w-0">
                   <p className="truncate font-mono select-text">{route.pattern}</p>
-                  <p className="mt-0.5 text-[11px] text-muted">{route.zoneName ?? route.zoneId}</p>
+                  <p className="mt-0.5 truncate text-label text-muted">{route.zoneName ?? route.zoneId}</p>
                 </div>
                 <Button
                   size="sm"
                   variant="ghost"
-                  className="text-failed hover:bg-failed-soft"
+                  className="text-failed-ink hover:bg-failed-soft"
                   onClick={() =>
                     ask({
                       title: "Remove Worker route",
@@ -1202,56 +1216,58 @@ function WorkerDetail({ accountId, name }: { accountId: string; name: string }) 
                 </Button>
               </div>
             ))}
-          </div>
+          </InspectorList>
         )}
       </TabsContent> : null}
 
-      <TabsContent value="domains" className="overflow-auto p-3">
-        <form
-          className="mb-3 space-y-2"
-          onSubmit={async (event) => {
-            event.preventDefault();
-            const hostname = domainHost.trim();
-            const zoneId = domainZoneId || zoneOptions[0]?.value;
-            if (!hostname || !zoneId || savingDomain) return;
-            setSavingDomain(true);
-            try {
-              await window.deployDeck.cloudflare.attachWorkerDomain(accountId, name, hostname, zoneId);
-              setDomainHost("");
-              await client.invalidateQueries({ queryKey: ["worker-domains", accountId, name] });
-              await client.invalidateQueries({ queryKey: ["domains"] });
-              toast.success("Worker domain attached");
-            } catch (error) {
-              toast.error(errorMessage(error));
-            } finally {
-              setSavingDomain(false);
-            }
-          }}
-        >
-          <div className="grid grid-cols-2 gap-2">
-            <SelectControl
-              ariaLabel="Zone for this hostname"
-              className="w-full"
-              value={domainZoneId || zoneOptions[0]?.value || ""}
-              onValueChange={setDomainZoneId}
-              options={zoneOptions}
-              placeholder="Select zone"
-              disabled={zoneOptions.length === 0}
-            />
-            <Input
-              aria-label="Worker hostname"
-              value={domainHost}
-              onChange={(event) => setDomainHost(event.target.value)}
-              placeholder="api.example.com"
-              className="font-mono"
-              autoCapitalize="none"
-              spellCheck={false}
-            />
-          </div>
-          <Button size="sm" type="submit" loading={savingDomain} disabled={!domainHost.trim() || zoneOptions.length === 0}>
-            Attach domain
-          </Button>
-        </form>
+      <TabsContent value="domains" className="overflow-auto">
+        <InspectorBlock>
+          <form
+            className="space-y-2.5"
+            onSubmit={async (event) => {
+              event.preventDefault();
+              const hostname = domainHost.trim();
+              const zoneId = domainZoneId || zoneOptions[0]?.value;
+              if (!hostname || !zoneId || savingDomain) return;
+              setSavingDomain(true);
+              try {
+                await window.deployDeck.cloudflare.attachWorkerDomain(accountId, name, hostname, zoneId);
+                setDomainHost("");
+                await client.invalidateQueries({ queryKey: ["worker-domains", accountId, name] });
+                await client.invalidateQueries({ queryKey: ["domains"] });
+                toast.success("Worker domain attached");
+              } catch (error) {
+                toast.error(errorMessage(error));
+              } finally {
+                setSavingDomain(false);
+              }
+            }}
+          >
+            <div className="grid grid-cols-2 gap-2">
+              <SelectControl
+                ariaLabel="Zone for this hostname"
+                className="w-full"
+                value={domainZoneId || zoneOptions[0]?.value || ""}
+                onValueChange={setDomainZoneId}
+                options={zoneOptions}
+                placeholder="Select zone"
+                disabled={zoneOptions.length === 0}
+              />
+              <Input
+                aria-label="Worker hostname"
+                value={domainHost}
+                onChange={(event) => setDomainHost(event.target.value)}
+                placeholder="api.example.com"
+                className="font-mono"
+                autoCapitalize="none"
+                spellCheck={false}
+              />
+            </div>
+            <Button size="sm" type="submit" loading={savingDomain} disabled={!domainHost.trim() || zoneOptions.length === 0}>
+              Attach domain
+            </Button>
+          </form>
+        </InspectorBlock>
         {domains.isLoading ? (
           <PanelLoading compact />
         ) : domains.isError ? (
@@ -1259,12 +1275,12 @@ function WorkerDetail({ accountId, name }: { accountId: string; name: string }) 
         ) : (domains.data ?? []).length === 0 ? (
           <PanelMessage>No custom domains are attached to this Worker.</PanelMessage>
         ) : (
-          <div className="divide-y divide-line/70 border-t border-line">
+          <InspectorList>
             {(domains.data ?? []).map((domain) => (
-              <div key={domain.id} className="flex min-h-10 items-center justify-between gap-3 py-2 text-[12px]">
+              <div key={domain.id} className="flex min-h-11 items-center justify-between gap-3 px-4 py-2">
                 <div className="min-w-0">
                   <p className="truncate font-medium select-text">{domain.name}</p>
-                  <p className="mt-0.5 text-[11px] text-muted">{domain.status}</p>
+                  <p className="mt-0.5 truncate text-label text-muted">{domain.status}</p>
                 </div>
                 <div className="flex shrink-0 gap-1">
                   <Button size="sm" variant="ghost" onClick={() => void window.deployDeck.shell.openHttps(`https://${domain.name}`)}>
@@ -1273,7 +1289,7 @@ function WorkerDetail({ accountId, name }: { accountId: string; name: string }) 
                   <Button
                     size="sm"
                     variant="ghost"
-                    className="text-failed hover:bg-failed-soft"
+                    className="text-failed-ink hover:bg-failed-soft"
                     onClick={() =>
                       ask({
                         title: "Detach Worker domain",
@@ -1294,33 +1310,35 @@ function WorkerDetail({ accountId, name }: { accountId: string; name: string }) 
                 </div>
               </div>
             ))}
-          </div>
+          </InspectorList>
         )}
       </TabsContent>
 
-      <TabsContent value="variables" className="overflow-auto p-3">
-        <form className="mb-3 space-y-2" onSubmit={(event) => void saveWorkerVar(event)}>
-          <div className="grid grid-cols-2 gap-2">
-            <Input
-              aria-label="Worker variable name"
-              value={varName}
-              onChange={(event) => setVarName(event.target.value)}
-              placeholder="NAME"
-              className="font-mono"
-              autoCapitalize="none"
-              spellCheck={false}
-            />
-            <Input
-              aria-label="Worker variable value"
-              value={varValue}
-              onChange={(event) => setVarValue(event.target.value)}
-              placeholder="Value"
-            />
-          </div>
-          <Button size="sm" type="submit" loading={savingVar} disabled={!varName.trim() || !varValue}>
-            Save variable
-          </Button>
-        </form>
+      <TabsContent value="variables" className="overflow-auto">
+        <InspectorBlock>
+          <form className="space-y-2.5" onSubmit={(event) => void saveWorkerVar(event)}>
+            <div className="grid grid-cols-2 gap-2">
+              <Input
+                aria-label="Worker variable name"
+                value={varName}
+                onChange={(event) => setVarName(event.target.value)}
+                placeholder="NAME"
+                className="font-mono"
+                autoCapitalize="none"
+                spellCheck={false}
+              />
+              <Input
+                aria-label="Worker variable value"
+                value={varValue}
+                onChange={(event) => setVarValue(event.target.value)}
+                placeholder="Value"
+              />
+            </div>
+            <Button size="sm" type="submit" loading={savingVar} disabled={!varName.trim() || !varValue}>
+              Save variable
+            </Button>
+          </form>
+        </InspectorBlock>
         {vars.isLoading ? (
           <PanelLoading compact />
         ) : vars.isError ? (
@@ -1328,9 +1346,9 @@ function WorkerDetail({ accountId, name }: { accountId: string; name: string }) 
         ) : (vars.data ?? []).length === 0 ? (
           <PanelMessage>No Worker variables are set.</PanelMessage>
         ) : (
-          <div className="divide-y divide-line/70 border-t border-line">
+          <InspectorList>
             {(vars.data ?? []).map((item) => (
-              <div key={item.id} className="flex min-h-10 items-center justify-between gap-3 py-2 text-[12px]">
+              <div key={item.id} className="flex min-h-11 items-center justify-between gap-3 px-4 py-2">
                 <span className="min-w-0 truncate font-mono select-text">{item.key}</span>
                 <div className="flex shrink-0 gap-1">
                 <Button
@@ -1346,7 +1364,7 @@ function WorkerDetail({ accountId, name }: { accountId: string; name: string }) 
                 <Button
                   size="sm"
                   variant="ghost"
-                  className="text-failed hover:bg-failed-soft"
+                  className="text-failed-ink hover:bg-failed-soft"
                   onClick={() =>
                     ask({
                       title: "Delete Worker variable",
@@ -1366,35 +1384,37 @@ function WorkerDetail({ accountId, name }: { accountId: string; name: string }) 
                 </div>
               </div>
             ))}
-          </div>
+          </InspectorList>
         )}
       </TabsContent>
 
-      <TabsContent value="secrets" className="overflow-auto p-3">
-        <form className="mb-3 space-y-2" onSubmit={(event) => void saveWorkerSecret(event)}>
-          <div className="grid grid-cols-2 gap-2">
-            <Input
-              aria-label="Worker secret name"
-              value={secretName}
-              onChange={(event) => setSecretName(event.target.value)}
-              placeholder="SECRET"
-              className="font-mono"
-              autoCapitalize="none"
-              spellCheck={false}
-            />
-            <Input
-              type="password"
-              aria-label="Worker secret value"
-              value={secretValue}
-              onChange={(event) => setSecretValue(event.target.value)}
-              placeholder="Value"
-              autoComplete="off"
-            />
-          </div>
-          <Button size="sm" type="submit" loading={savingSecret} disabled={!secretName.trim() || !secretValue}>
-            Save secret
-          </Button>
-        </form>
+      <TabsContent value="secrets" className="overflow-auto">
+        <InspectorBlock>
+          <form className="space-y-2.5" onSubmit={(event) => void saveWorkerSecret(event)}>
+            <div className="grid grid-cols-2 gap-2">
+              <Input
+                aria-label="Worker secret name"
+                value={secretName}
+                onChange={(event) => setSecretName(event.target.value)}
+                placeholder="SECRET"
+                className="font-mono"
+                autoCapitalize="none"
+                spellCheck={false}
+              />
+              <Input
+                type="password"
+                aria-label="Worker secret value"
+                value={secretValue}
+                onChange={(event) => setSecretValue(event.target.value)}
+                placeholder="Value"
+                autoComplete="off"
+              />
+            </div>
+            <Button size="sm" type="submit" loading={savingSecret} disabled={!secretName.trim() || !secretValue}>
+              Save secret
+            </Button>
+          </form>
+        </InspectorBlock>
         {secrets.isLoading ? (
           <PanelLoading compact />
         ) : secrets.isError ? (
@@ -1402,12 +1422,12 @@ function WorkerDetail({ accountId, name }: { accountId: string; name: string }) 
         ) : (secrets.data ?? []).length === 0 ? (
           <PanelMessage>No Worker secrets are set.</PanelMessage>
         ) : (
-          <div className="divide-y divide-line/70 border-t border-line">
+          <InspectorList>
             {(secrets.data ?? []).map((item) => (
-              <div key={item.id} className="flex min-h-10 items-center justify-between gap-3 py-2 text-[12px]">
+              <div key={item.id} className="flex min-h-11 items-center justify-between gap-3 px-4 py-2">
                 <div className="min-w-0">
                   <p className="truncate font-mono">{item.key}</p>
-                  <p className="mt-0.5 text-[11px] text-muted">Permanently masked</p>
+                  <p className="mt-0.5 truncate text-label text-muted">Permanently masked</p>
                 </div>
                 <div className="flex shrink-0 gap-1">
                 <Button
@@ -1423,7 +1443,7 @@ function WorkerDetail({ accountId, name }: { accountId: string; name: string }) 
                 <Button
                   size="sm"
                   variant="ghost"
-                  className="text-failed hover:bg-failed-soft"
+                  className="text-failed-ink hover:bg-failed-soft"
                   onClick={() =>
                     ask({
                       title: "Delete Worker secret",
@@ -1443,7 +1463,7 @@ function WorkerDetail({ accountId, name }: { accountId: string; name: string }) 
                 </div>
               </div>
             ))}
-          </div>
+          </InspectorList>
         )}
       </TabsContent>
     </Tabs>
@@ -1452,9 +1472,12 @@ function WorkerDetail({ accountId, name }: { accountId: string; name: string }) 
 
 function PanelLoading({ compact = false }: { compact?: boolean }) {
   return (
-    <div className={cn("space-y-2", compact ? "py-2" : "p-3")} aria-label="Loading">
+    <div className="divide-y divide-line/70 border-t border-line" aria-label="Loading">
       {Array.from({ length: compact ? 3 : 5 }).map((_, index) => (
-        <Skeleton key={index} className="h-8" />
+        <div key={index} className="flex min-h-11 items-center justify-between gap-3 px-4 py-2">
+          <Skeleton className="h-3 w-2/5" />
+          <Skeleton className="h-3 w-16" />
+        </div>
       ))}
     </div>
   );
@@ -1466,4 +1489,18 @@ function PanelMessage({ children }: { children: string }) {
 
 function InlineError({ message, onRetry }: { message: string; onRetry: () => void }) {
   return <ScreenError size="inline" message={message} onRetry={onRetry} />;
+}
+
+/**
+ * Full-bleed divided list for inspector tabs. Rows are `PanelRow`, so hover and
+ * focus reach the panel edges and every list in here looks the same. This
+ * replaces nine hand-rolled `divide-y` + `-mx-2 flex min-h-10` variants.
+ */
+function InspectorList({ children }: { children: ReactNode }) {
+  return <InspectorList>{children}</InspectorList>;
+}
+
+/** Padded region for the forms and prose that sit between lists. */
+function InspectorBlock({ children, className }: { children: ReactNode; className?: string }) {
+  return <div className={cn("px-4 py-3", className)}>{children}</div>;
 }

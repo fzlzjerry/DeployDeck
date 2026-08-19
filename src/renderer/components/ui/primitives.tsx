@@ -17,31 +17,52 @@ import { easeOutExpo } from "@/lib/motion";
 const controlFocus =
   "outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-offset-1 focus-visible:ring-offset-bg";
 
+/*
+ * Controls share one 34px rail so a toolbar of buttons, inputs, and selects
+ * lines up. `sm` (28px) is the quiet in-row variant; `lg` (40px) is for the
+ * first-run console and primary form submits.
+ */
+/*
+ * Disabled filled buttons drop to a neutral surface rather than fading the
+ * fill. A saturated accent at 40% opacity reads as a smudge, and it also spends
+ * the one-lamp budget on a control that cannot be pressed.
+ */
+const disabledFill = cn(
+  "disabled:bg-surface-2 disabled:text-subtle disabled:active:translate-y-0",
+  "data-[disabled=true]:bg-surface-2 data-[disabled=true]:text-subtle",
+);
+const disabledQuiet = "disabled:opacity-45 data-[disabled=true]:opacity-45";
+
 const buttonVariants = cva(
   cn(
-    "inline-flex shrink-0 select-none items-center justify-center gap-1.5 whitespace-nowrap rounded-md font-medium",
+    "inline-flex shrink-0 select-none items-center justify-center gap-1.5 whitespace-nowrap rounded-control font-medium",
     "transition-[color,background-color,border-color,opacity,transform] duration-150 ease-[var(--ease-out-expo)]",
-    "disabled:pointer-events-none disabled:opacity-40 data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-40",
+    "disabled:pointer-events-none data-[disabled=true]:pointer-events-none",
     "motion-reduce:transition-none [&_svg]:pointer-events-none [&_svg]:shrink-0",
     controlFocus,
   ),
   {
     variants: {
       variant: {
-        default:
+        default: cn(
           "bg-ember text-ember-fg hover:bg-ember-hover active:translate-y-px active:bg-ember-active",
-        secondary: "bg-surface-2 text-ink hover:bg-surface-3 active:translate-y-px",
-        ghost: "text-ink hover:bg-surface-2 active:bg-surface-3",
-        outline: "border border-line bg-bg text-ink hover:bg-surface active:bg-surface-2",
-        danger:
-          "bg-failed text-failed-fg hover:bg-failed-hover active:translate-y-px",
-        destructive:
-          "bg-failed text-failed-fg hover:bg-failed-hover active:translate-y-px",
+          disabledFill,
+        ),
+        secondary: cn("bg-surface-2 text-ink hover:bg-surface-3 active:translate-y-px", disabledQuiet),
+        ghost: cn("text-ink hover:bg-surface-2 active:bg-surface-3", disabledQuiet),
+        outline: cn(
+          "border border-line bg-control text-ink hover:bg-control-hover active:bg-surface-2",
+          disabledQuiet,
+        ),
+        danger: cn("bg-failed text-failed-fg hover:bg-failed-hover active:translate-y-px", disabledFill),
+        destructive: cn("bg-failed text-failed-fg hover:bg-failed-hover active:translate-y-px", disabledFill),
       },
       size: {
-        default: "h-8 px-3 text-[13px] [&_svg]:size-3.5",
-        sm: "h-7 px-2.5 text-[12px] [&_svg]:size-3.5",
-        icon: "size-8 p-0 [&_svg]:size-4",
+        default: "h-[34px] px-3 text-body [&_svg]:size-4",
+        sm: "h-7 px-2.5 text-dense [&_svg]:size-3.5",
+        lg: "h-10 px-4 text-body [&_svg]:size-4",
+        icon: "size-[34px] p-0 [&_svg]:size-4",
+        "icon-sm": "size-7 p-0 [&_svg]:size-3.5",
       },
     },
     defaultVariants: { variant: "default", size: "default" },
@@ -101,9 +122,10 @@ export const Input = React.forwardRef<HTMLInputElement, React.ComponentPropsWith
     <input
       ref={ref}
       className={cn(
-        "h-8 w-full rounded-md border border-line bg-control px-2.5 text-[13px] text-ink placeholder:text-muted",
+        "h-[34px] w-full rounded-control border border-line bg-control px-3 text-body text-ink placeholder:text-muted",
         "transition-[color,background-color,border-color,box-shadow] duration-150 ease-[var(--ease-out-expo)]",
-        "disabled:cursor-not-allowed disabled:bg-surface disabled:opacity-55 aria-invalid:border-failed aria-invalid:ring-failed/25",
+        "hover:border-line-strong disabled:cursor-not-allowed disabled:bg-surface disabled:opacity-55",
+        "aria-invalid:border-failed aria-invalid:ring-2 aria-invalid:ring-failed/20",
         "motion-reduce:transition-none",
         controlFocus,
         className,
@@ -119,9 +141,10 @@ export const Textarea = React.forwardRef<HTMLTextAreaElement, React.ComponentPro
       <textarea
         ref={ref}
         className={cn(
-          "min-h-20 w-full resize-y rounded-md border border-line bg-control px-2.5 py-2 text-[13px] text-ink placeholder:text-muted",
+          "min-h-20 w-full resize-y rounded-control border border-line bg-control px-3 py-2 text-body text-ink placeholder:text-muted",
           "transition-[color,background-color,border-color,box-shadow] duration-150 ease-[var(--ease-out-expo)]",
-          "disabled:cursor-not-allowed disabled:bg-surface disabled:opacity-55 aria-invalid:border-failed aria-invalid:ring-failed/25",
+          "hover:border-line-strong disabled:cursor-not-allowed disabled:bg-surface disabled:opacity-55",
+          "aria-invalid:border-failed aria-invalid:ring-2 aria-invalid:ring-failed/20",
           "motion-reduce:transition-none",
           controlFocus,
           className,
@@ -139,32 +162,65 @@ export const Label = React.forwardRef<
   return (
     <LabelPrimitive.Root
       ref={ref}
-      className={cn("text-[12px] font-medium text-muted peer-disabled:cursor-not-allowed peer-disabled:opacity-55", className)}
+      className={cn("text-label font-medium text-muted peer-disabled:cursor-not-allowed peer-disabled:opacity-55", className)}
       {...props}
     />
   );
 });
 
-const badgeVariants = cva("inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-medium", {
-  variants: {
-    variant: {
-      neutral: "bg-surface-2 text-muted",
-      outline: "border border-line bg-bg text-muted",
-      success: "bg-ready/12 text-ready",
-      warning: "bg-ember-soft text-ember-ink",
-      danger: "bg-failed/12 text-failed",
+/*
+ * Every coloured variant pairs a `-soft` wash with its `-ink` text, the two
+ * roles scripts/contrast.mjs verifies together. The border is the ink at low
+ * alpha, so it tracks the tone without needing its own token.
+ */
+const badgeVariants = cva(
+  cn(
+    "inline-flex h-[22px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md border px-2",
+    "text-label font-medium",
+  ),
+  {
+    variants: {
+      variant: {
+        neutral: "border-line bg-surface-2 text-muted",
+        outline: "border-line bg-transparent text-muted",
+        ready: "border-ready-ink/25 bg-ready-soft text-ready-ink",
+        failed: "border-failed-ink/25 bg-failed-soft text-failed-ink",
+        building: "border-building-ink/25 bg-building-soft text-building-ink",
+        queued: "border-queued-ink/25 bg-queued-soft text-queued-ink",
+        canceled: "border-canceled-ink/25 bg-canceled-soft text-canceled-ink",
+        warning: "border-warning-ink/25 bg-warning-soft text-warning-ink",
+        accent: "border-ember-ink/25 bg-ember-soft text-ember-ink",
+      },
     },
+    defaultVariants: { variant: "neutral" },
   },
-  defaultVariants: { variant: "neutral" },
-});
+);
 
-export interface BadgeProps extends React.ComponentPropsWithoutRef<"span">, VariantProps<typeof badgeVariants> {}
+export interface BadgeProps extends React.ComponentPropsWithoutRef<"span">, VariantProps<typeof badgeVariants> {
+  /** Leading indicator dot, tinted to the badge's own text colour. */
+  dot?: boolean;
+  /** Animates the dot. Reserved for states that are actively in progress. */
+  pulse?: boolean;
+}
 
 export const Badge = React.forwardRef<HTMLSpanElement, BadgeProps>(function Badge(
-  { className, variant, ...props },
+  { className, variant, dot = false, pulse = false, children, ...props },
   ref,
 ) {
-  return <span ref={ref} className={cn(badgeVariants({ variant }), className)} {...props} />;
+  return (
+    <span ref={ref} className={cn(badgeVariants({ variant }), className)} {...props}>
+      {dot ? (
+        <span
+          aria-hidden="true"
+          className={cn(
+            "size-1.5 shrink-0 rounded-full bg-current",
+            pulse && "animate-pulse motion-reduce:animate-none",
+          )}
+        />
+      ) : null}
+      {children}
+    </span>
+  );
 });
 
 export const Separator = React.forwardRef<
@@ -211,11 +267,11 @@ export function TableSkeleton({
   className?: string;
 }) {
   return (
-    <div className={cn("px-3 py-2", className)} role="status" aria-label={label}>
+    <div className={cn("px-3.5 py-2", className)} role="status" aria-label={label}>
       {Array.from({ length: rows }).map((_, rowIndex) => (
         <div
           key={rowIndex}
-          className="grid h-9 items-center gap-4"
+          className="grid h-[var(--row-h,40px)] items-center gap-4"
           style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
         >
           {Array.from({ length: columns }).map((__, columnIndex) => (
@@ -264,15 +320,20 @@ export function SelectControl({
       <SelectPrimitive.Trigger
         aria-label={ariaLabel}
         className={cn(
-          "inline-flex min-w-0 items-center justify-between gap-2 rounded-md border border-line bg-control text-left text-ink",
+          "inline-flex min-w-0 items-center justify-between gap-2 rounded-control border border-line bg-control text-left text-ink",
           "transition-[color,background-color,border-color,box-shadow] duration-150 ease-[var(--ease-out-expo)]",
-          "hover:bg-control-hover data-[placeholder]:text-muted disabled:cursor-not-allowed disabled:opacity-45 motion-reduce:transition-none",
+          "hover:border-line-strong hover:bg-control-hover data-[placeholder]:text-muted",
+          "disabled:cursor-not-allowed disabled:opacity-45 motion-reduce:transition-none",
           controlFocus,
-          size === "sm" ? "h-7 px-2 text-[12px]" : "h-8 px-2.5 text-[13px]",
+          size === "sm" ? "h-7 px-2 text-dense" : "h-[34px] px-3 text-body",
           className,
         )}
       >
-        <SelectPrimitive.Value placeholder={placeholder} />
+        {/* Clip rather than wrap: a long option must not grow the control and
+            break the height of the toolbar row it sits in. */}
+        <span className="min-w-0 truncate">
+          <SelectPrimitive.Value placeholder={placeholder} />
+        </span>
         <SelectPrimitive.Icon asChild>
           <ChevronDown aria-hidden="true" className="size-3.5 shrink-0 text-muted" />
         </SelectPrimitive.Icon>
@@ -283,8 +344,9 @@ export function SelectControl({
           sideOffset={4}
           collisionPadding={8}
           className={cn(
-            "z-50 max-h-[min(320px,var(--radix-select-content-available-height))] min-w-[var(--radix-select-trigger-width)]",
-            "overflow-hidden rounded-md bg-bg p-1 text-ink shadow-[var(--shadow-popover)]",
+            "z-[var(--z-dropdown)] max-h-[min(320px,var(--radix-select-content-available-height))]",
+            "min-w-[var(--radix-select-trigger-width)]",
+            "overflow-hidden rounded-control bg-panel p-1 text-ink shadow-[var(--shadow-popover)]",
             "popover-motion origin-[var(--radix-select-content-transform-origin)]",
           )}
         >
@@ -295,7 +357,7 @@ export function SelectControl({
                 value={option.value}
                 disabled={option.disabled}
                 className={cn(
-                  "relative flex h-7 cursor-default select-none items-center rounded px-2 pr-7 text-[12px] outline-none",
+                  "relative flex h-8 cursor-default select-none items-center rounded-md px-2 pr-7 text-dense outline-none",
                   "data-[highlighted]:bg-surface-2 data-[disabled]:pointer-events-none data-[disabled]:opacity-40",
                 )}
               >
@@ -327,7 +389,7 @@ export const SwitchControl = React.forwardRef<
       ref={ref}
       aria-label={ariaLabel}
       className={cn(
-        "relative h-[18px] w-8 shrink-0 rounded-full border border-line bg-surface-2 outline-none",
+        "relative h-5 w-9 shrink-0 rounded-full border border-line bg-surface-2 outline-none",
         "transition-[background-color,border-color,box-shadow] duration-150 ease-[var(--ease-out-expo)]",
         "data-[state=checked]:border-ember data-[state=checked]:bg-ember disabled:cursor-not-allowed disabled:opacity-40",
         "motion-reduce:transition-none",
@@ -338,8 +400,8 @@ export const SwitchControl = React.forwardRef<
     >
       <SwitchPrimitive.Thumb
         className={cn(
-          "block size-3.5 translate-x-px rounded-full bg-bg",
-          "transition-transform duration-150 ease-[var(--ease-out-expo)] data-[state=checked]:translate-x-[15px] motion-reduce:transition-none",
+          "block size-4 translate-x-px rounded-full bg-panel shadow-[0_1px_2px_oklch(0.2_0.02_252/0.25)]",
+          "transition-transform duration-150 ease-[var(--ease-out-expo)] data-[state=checked]:translate-x-[17px] motion-reduce:transition-none",
         )}
       />
     </SwitchPrimitive.Root>
@@ -384,7 +446,7 @@ export function SegmentedControl<T extends string>({
       orientation="horizontal"
       loop
       className={cn(
-        "inline-flex shrink-0 items-center gap-0.5 rounded-md bg-surface p-0.5",
+        "inline-flex shrink-0 items-center gap-0.5 rounded-control border border-line bg-surface p-0.5",
         disabled && "opacity-45",
         className,
       )}
@@ -402,7 +464,7 @@ export function SegmentedControl<T extends string>({
               "outline-none transition-colors duration-150 ease-[var(--ease-out-expo)] motion-reduce:transition-none",
               "focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]",
               "disabled:pointer-events-none disabled:opacity-40",
-              size === "sm" ? "h-6 px-2 text-[11px]" : "h-7 px-2.5 text-[12px]",
+              size === "sm" ? "h-7 px-2.5 text-label" : "h-8 px-3 text-dense",
               active ? "text-ink" : "text-muted hover:text-ink",
             )}
           >
@@ -410,7 +472,7 @@ export function SegmentedControl<T extends string>({
               <motion.span
                 layoutId={indicatorId}
                 aria-hidden="true"
-                className="absolute inset-0 rounded-[6px] bg-bg shadow-[inset_0_0_0_1px_var(--line)]"
+                className="absolute inset-0 rounded-md bg-panel shadow-[inset_0_0_0_1px_var(--line)]"
                 transition={reduce ? { duration: 0 } : { duration: 0.18, ease: easeOutExpo }}
               />
             ) : null}
@@ -465,7 +527,13 @@ export const TabsList = React.forwardRef<
   return (
     <TabsPrimitive.List
       ref={ref}
-      className={cn("flex min-h-9 items-end gap-1 border-b border-line px-2", className)}
+      // Scrolls rather than wraps: a wrapped label would double the height of
+      // the tab bar in a narrow inspector.
+      className={cn(
+        "flex min-h-11 shrink-0 items-stretch gap-1 overflow-x-auto border-b border-line px-4",
+        "[scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+        className,
+      )}
       {...props}
     />
   );
@@ -479,9 +547,9 @@ export const TabsTrigger = React.forwardRef<
     <TabsPrimitive.Trigger
       ref={ref}
       className={cn(
-        "relative inline-flex h-9 items-center justify-center px-2 text-[12px] font-medium text-muted outline-none",
+        "relative inline-flex h-11 shrink-0 items-center justify-center px-2.5 text-dense font-medium whitespace-nowrap text-muted outline-none",
         "transition-colors duration-150 ease-[var(--ease-out-expo)] hover:text-ink disabled:pointer-events-none disabled:opacity-40",
-        "after:absolute after:inset-x-1 after:bottom-0 after:h-0.5 after:rounded-full after:bg-transparent",
+        "after:absolute after:inset-x-0.5 after:-bottom-px after:h-0.5 after:rounded-full after:bg-transparent",
         "data-[state=active]:text-ink data-[state=active]:after:bg-ember motion-reduce:transition-none",
         "focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-inset",
         className,
@@ -547,7 +615,7 @@ export function Tooltip({
           sideOffset={sideOffset}
           collisionPadding={8}
           className={cn(
-            "z-50 max-w-64 rounded-md bg-ink px-2 py-1 text-[11px] leading-4 text-bg",
+            "z-[var(--z-tooltip)] max-w-72 rounded-md bg-ink px-2 py-1 text-label text-bg",
             "popover-motion origin-[var(--radix-tooltip-content-transform-origin)]",
             contentClassName,
           )}
@@ -567,8 +635,8 @@ export const Kbd = React.forwardRef<HTMLElement, React.ComponentPropsWithoutRef<
     <kbd
       ref={ref}
       className={cn(
-        "inline-flex min-w-5 items-center justify-center rounded-[4px] border border-line bg-surface px-1 py-0.5",
-        "font-sans text-[10px] leading-none text-muted",
+        "inline-flex h-5 min-w-5 items-center justify-center rounded-[5px] border border-line bg-surface px-1.5",
+        "font-sans text-micro leading-none text-muted",
         className,
       )}
       {...props}

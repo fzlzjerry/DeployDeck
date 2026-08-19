@@ -1,8 +1,8 @@
 import type { DnsRecord, DnsRecordType } from "@shared/models";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
-import { Copy, Pencil, Trash2 } from "lucide-react";
-import { useEffect, useId, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { Copy, Pencil, Search, Trash2 } from "lucide-react";
+import { cloneElement, useEffect, useId, useMemo, useState, type FormEvent, type ReactElement } from "react";
 import { toast } from "sonner";
 import { EmptyState, ScreenError } from "@/components/common/empty-state";
 import { InspectorHeader, InspectorPanel, ScreenToolbar } from "@/components/ui/layout";
@@ -145,14 +145,22 @@ export function DnsScreen() {
 
   return (
     <div className="flex h-full min-h-0">
-      <aside className="flex w-56 shrink-0 flex-col border-r border-line bg-surface/45" aria-label="DNS zones">
-        <div className="border-b border-line p-2">
-          <Input
-            value={zoneSearch}
-            onChange={(event) => setZoneSearch(event.target.value)}
-            placeholder="Search zones"
-            aria-label="Search DNS zones"
-          />
+      <aside className="flex w-64 shrink-0 flex-col border-r border-line bg-surface" aria-label="DNS zones">
+        <div className="flex min-h-14 shrink-0 items-center border-b border-line px-3">
+          <div className="relative w-full">
+            <Search
+              className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted"
+              strokeWidth={1.75}
+              aria-hidden
+            />
+            <Input
+              value={zoneSearch}
+              onChange={(event) => setZoneSearch(event.target.value)}
+              placeholder="Search zones"
+              aria-label="Search DNS zones"
+              className="pl-8"
+            />
+          </div>
         </div>
         <div className="min-h-0 flex-1 overflow-auto p-2">
           {zones.isLoading ? (
@@ -177,17 +185,19 @@ export function DnsScreen() {
                   type="button"
                   aria-current={active ? "page" : undefined}
                   className={cn(
-                    "mb-1 w-full rounded-md px-2 py-2 text-left text-[12px] outline-none",
+                    "mb-1 w-full rounded-control px-2.5 py-2 text-left outline-none",
                     "transition-colors duration-150 ease-[var(--ease-out-expo)] motion-reduce:transition-none",
                     "focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]",
                     active
-                      ? "bg-bg shadow-[inset_0_0_0_1px_var(--line)]"
-                      : "text-muted hover:bg-bg/70 hover:text-ink",
+                      ? "bg-panel shadow-[inset_0_0_0_1px_var(--line)]"
+                      : "hover:bg-bg/70",
                   )}
                   onClick={() => selectZone(zone.id)}
                 >
-                  <p className="truncate font-medium text-ink">{zone.name}</p>
-                  <p className="mt-0.5 truncate text-[11px] text-muted">
+                  <p className={cn("truncate text-body font-medium", active ? "text-ink" : "text-ink/90")}>
+                    {zone.name}
+                  </p>
+                  <p className="mt-0.5 truncate text-label text-muted">
                     {zone.status}
                     {zone.planName ? ` · ${zone.planName}` : ""}
                   </p>
@@ -214,14 +224,14 @@ export function DnsScreen() {
                 onValueChange={(value) => setType(value as DnsRecordType | "all")}
                 options={TYPE_FILTER_OPTIONS}
                 ariaLabel="Filter by record type"
-                className="w-28"
+                className="w-32"
               />
               <SelectControl
                 value={proxied}
                 onValueChange={(value) => setProxied(value as "all" | "yes" | "no")}
                 options={PROXY_FILTER_OPTIONS}
                 ariaLabel="Filter by proxy mode"
-                className="w-32"
+                className="w-40"
               />
               <SelectControl
                 value={sort}
@@ -232,9 +242,9 @@ export function DnsScreen() {
               />
               <div className="ml-auto flex items-center gap-3">
                 {records.isFetching && !records.isLoading && !records.isFetchingNextPage ? (
-                  <span className="text-[11px] text-muted">Updating…</span>
+                  <span className="text-dense text-muted">Updating…</span>
                 ) : (
-                  <span className="text-[11px] text-muted">
+                  <span className="text-dense text-muted tabular">
                     {items.length} {items.length === 1 ? "record" : "records"}
                     {records.hasNextPage ? "+" : ""}
                   </span>
@@ -380,19 +390,31 @@ function DnsRecordTable({
                 </Badge>
               </td>
               <td className="max-w-56 truncate font-medium">{record.name}</td>
-              <td className="max-w-72 truncate font-mono text-[11px] text-muted">{record.content}</td>
-              <td>{record.proxied ? "Proxied" : record.proxiable ? "DNS only" : "—"}</td>
-              <td className="tabular">{record.ttl === 1 ? "Auto" : record.ttl}</td>
-              <td className="tabular">{record.priority ?? "—"}</td>
-              <td className="tabular">{formatWhen(record.modifiedOn, "absolute")}</td>
+              <td className="max-w-72 truncate font-mono text-dense text-muted">{record.content}</td>
+              <td>
+                {/* Proxied means Cloudflare is terminating traffic for this
+                    record, which changes what the record actually does. It
+                    earns a pill; "DNS only" is the quiet default. */}
+                {record.proxied ? (
+                  <Badge variant="accent" dot>
+                    Proxied
+                  </Badge>
+                ) : record.proxiable ? (
+                  <Badge variant="outline">DNS only</Badge>
+                ) : (
+                  <span className="text-muted">—</span>
+                )}
+              </td>
+              <td data-numeric>{record.ttl === 1 ? "Auto" : record.ttl}</td>
+              <td data-numeric>{record.priority ?? "—"}</td>
+              <td data-numeric className="text-muted">{formatWhen(record.modifiedOn, "absolute")}</td>
               <td>
                 <div className="flex justify-end gap-1">
                   <CopyRecordMenu record={record} />
                   <Tooltip content="Edit record">
                     <Button
-                      size="icon"
+                      size="icon-sm"
                       variant="ghost"
-                      className="size-7"
                       aria-label={`Edit ${record.type} record ${record.name}`}
                       onClick={() => onEdit(record)}
                     >
@@ -401,9 +423,9 @@ function DnsRecordTable({
                   </Tooltip>
                   <Tooltip content="Delete record">
                     <Button
-                      size="icon"
+                      size="icon-sm"
                       variant="ghost"
-                      className="size-7 text-failed hover:bg-failed/10"
+                      className="text-failed-ink hover:bg-failed-soft"
                       aria-label={`Delete ${record.type} record ${record.name}`}
                       onClick={() => onDelete(record)}
                     >
@@ -691,19 +713,19 @@ function RecordForm({
           </FormField>
 
           {proxyable ? (
-            <div className="rounded-md bg-surface px-2.5 py-2.5">
-              <div className="flex items-center gap-2">
+            <div className="rounded-control border border-line bg-surface px-3 py-2.5">
+              <div className="flex items-center gap-2.5">
                 <CheckboxControl
                   id={ids.proxied}
                   checked={proxied}
                   onCheckedChange={setProxied}
                   ariaLabel="Proxy this record through Cloudflare"
                 />
-                <Label htmlFor={ids.proxied} className="text-[12px] text-ink">
+                <Label htmlFor={ids.proxied} className="text-body text-ink">
                   Cloudflare proxy
                 </Label>
               </div>
-              <p className="mt-1 pl-6 text-[11px] leading-4 text-muted">
+              <p className="mt-1.5 pl-[26px] text-dense text-muted">
                 Route traffic through Cloudflare instead of exposing the origin directly.
               </p>
             </div>
@@ -719,14 +741,14 @@ function RecordForm({
           </FormField>
         </div>
 
-        <div className="flex shrink-0 items-center justify-between gap-2 border-t border-line p-3">
+        <div className="flex min-h-14 shrink-0 items-center justify-between gap-2 border-t border-line bg-panel-header px-4 py-2.5">
           <div>
             {onDelete ? (
               <Button
                 type="button"
                 size="sm"
                 variant="ghost"
-                className="text-failed hover:bg-failed/10"
+                className="text-failed-ink hover:bg-failed-soft"
                 disabled={saving}
                 onClick={onDelete}
               >
@@ -757,17 +779,24 @@ function FormField({
   label: string;
   htmlFor?: string;
   hint?: string;
-  children: ReactNode;
+  children: ReactElement<{ "aria-describedby"?: string }>;
 }) {
+  // The hint sits under the field as helper text rather than shrunk to 10px
+  // beside the label, and is bound to the input so it is actually announced.
+  const hintId = hint && htmlFor ? `${htmlFor}-hint` : undefined;
+  const field = hintId ? cloneElement(children, { "aria-describedby": hintId }) : children;
+
   return (
     <div className="space-y-1.5">
-      <div className="flex items-baseline justify-between gap-3">
-        <Label htmlFor={htmlFor} className="text-ink">
-          {label}
-        </Label>
-        {hint ? <span className="text-right text-[10px] leading-4 text-muted">{hint}</span> : null}
-      </div>
-      {children}
+      <Label htmlFor={htmlFor} className="text-ink">
+        {label}
+      </Label>
+      {field}
+      {hint ? (
+        <p id={hintId} className="text-dense text-muted">
+          {hint}
+        </p>
+      ) : null}
     </div>
   );
 }

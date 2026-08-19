@@ -134,8 +134,8 @@ export function ConnectionStatusPill({
       role="status"
       aria-live="polite"
       className={cn(
-        "inline-flex shrink-0 items-center gap-1.5 rounded-full py-0.5 pr-2.5 pl-1 text-[11px] font-medium",
-        connected ? "bg-ready-soft text-ready" : "bg-surface-2 text-muted",
+        "inline-flex h-[22px] shrink-0 items-center gap-1.5 rounded-full border py-0.5 pr-2.5 pl-1 text-label font-medium",
+        connected ? "border-ready-ink/25 bg-ready-soft text-ready-ink" : "border-line bg-surface-2 text-muted",
         className,
       )}
     >
@@ -190,9 +190,17 @@ export function ProviderTokenForm({
           aria-describedby={error ? errorId : undefined}
           onChange={(event) => setToken(event.target.value)}
           placeholder={connected ? `Paste a new ${provider.name} token` : `Paste your ${provider.name} token`}
-          className="font-mono text-[12px] placeholder:font-sans placeholder:text-[13px]"
+          className="font-mono text-dense placeholder:font-sans placeholder:text-body"
         />
-        <Button type="submit" size="default" loading={connecting} disabled={!token.trim() || busy}>
+        {/* Once connected, Reconnect is the row's primary action, so replacing
+            the token steps down to secondary. Two ember fills in one row spends
+            the accent twice for one decision. */}
+        <Button
+          type="submit"
+          variant={connected ? "secondary" : "default"}
+          loading={connecting}
+          disabled={!token.trim() || busy}
+        >
           {connected ? "Replace" : "Connect"}
         </Button>
       </div>
@@ -215,7 +223,7 @@ function DisconnectButton({ provider }: { provider: ProviderConnectionState }) {
     <Button
       variant="ghost"
       size="sm"
-      className="text-muted hover:text-failed"
+      className="text-muted hover:text-failed-ink"
       loading={provider.disconnecting}
       onClick={provider.disconnect}
     >
@@ -341,7 +349,7 @@ export function ProviderChannel({
     <div
       ref={root}
       className={cn(
-        "relative overflow-hidden rounded-xl bg-surface px-4 py-3.5",
+        "relative overflow-hidden rounded-panel bg-surface px-4 py-3.5",
         "shadow-[inset_0_0_0_1px_var(--line)]",
       )}
     >
@@ -360,8 +368,8 @@ export function ProviderChannel({
       <div className="relative flex items-center gap-3">
         <ProviderTile brand={provider.id} />
         <div className="min-w-0 flex-1">
-          <p className="text-[13px] font-semibold tracking-[-0.01em] text-ink">{provider.name}</p>
-          <p className="truncate text-[12px] text-muted">
+          <p className="text-body font-semibold tracking-[-0.01em] text-ink">{provider.name}</p>
+          <p className="truncate text-dense text-muted">
             {connected
               ? (provider.account ?? "Connected")
               : provider.oauthAvailable
@@ -378,12 +386,12 @@ export function ProviderChannel({
           <div className="mt-3.5 space-y-2.5 rounded-lg bg-surface-sunken p-2.5 shadow-[inset_0_1px_3px_oklch(0_0_0/0.18)]">
             {provider.oauthAvailable ? <SignInButton provider={provider} /> : null}
             {!provider.oauthAvailable ? (
-              <p className="text-[12px] leading-4 text-muted">
+              <p className="text-dense text-muted">
                 OAuth is not configured. Paste a token to connect this provider.
               </p>
             ) : null}
             {provider.error ? (
-              <p role="alert" className="flex gap-1.5 text-[12px] leading-4 text-failed">
+              <p role="alert" className="flex gap-1.5 text-dense text-failed-ink">
                 <TriangleAlert className="mt-px size-3.5 shrink-0" aria-hidden />
                 {provider.error}
               </p>
@@ -434,12 +442,12 @@ export function ProviderConnectionRow({ provider }: { provider: ProviderConnecti
       <div className="w-[min(28rem,46vw)] space-y-2">
         {provider.oauthAvailable ? <SignInButton provider={provider} reconnect={provider.connected} /> : null}
         {!provider.oauthAvailable && !provider.connected ? (
-          <p className="text-[12px] leading-4 text-muted">
+          <p className="text-dense text-muted">
             OAuth is not configured. Paste a token to connect this provider.
           </p>
         ) : null}
         {provider.error ? (
-          <p role="alert" className="flex gap-1.5 text-[12px] leading-4 text-failed">
+          <p role="alert" className="flex gap-1.5 text-dense text-failed-ink">
             <TriangleAlert className="mt-px size-3.5 shrink-0" aria-hidden />
             {provider.error}
           </p>

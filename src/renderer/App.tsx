@@ -86,13 +86,13 @@ export function App() {
   else if (showConnect) mode = "connect";
 
   return (
-    <div className="relative h-full bg-bg text-ink">
+    <div className="relative h-full bg-canvas text-ink">
       {offline ? (
         <div
           role="status"
-          className="absolute top-14 right-4 z-30 flex items-center gap-2 rounded-md bg-surface-2 px-3 py-1.5 text-[12px] text-muted"
+          className="absolute top-14 right-6 z-[var(--z-sticky)] flex items-center gap-2 rounded-control border border-line bg-panel px-3 py-1.5 text-dense text-muted"
         >
-          <WifiOff className="size-3.5" aria-hidden />
+          <WifiOff className="size-3.5" strokeWidth={1.75} aria-hidden />
           Offline · showing cached session data
         </div>
       ) : null}
@@ -157,7 +157,7 @@ function BootScreen() {
         transition={reduce ? { duration: 0 } : { duration: 0.2, ease: easeOutExpo }}
       >
         <Logo className="size-8" />
-        <span className="text-[13px]">Opening workspace…</span>
+        <span className="text-dense">Opening workspace…</span>
       </motion.div>
     </div>
   );

@@ -1,10 +1,13 @@
+import type { UnifiedDomain } from "@shared/models";
+import { domainNeedsDns } from "@shared/domain-dns";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { TriangleAlert } from "lucide-react";
+import { Fragment, useEffect, useState } from "react";
 import { EmptyState, ScreenError } from "@/components/common/empty-state";
 import { DomainVerification } from "@/components/domains/domain-verification";
 import { ProviderMark } from "@/components/common/status-badge";
 import { ScreenToolbar } from "@/components/ui/layout";
-import { Button, Input, SelectControl, TableSkeleton } from "@/components/ui/primitives";
+import { Badge, type BadgeProps, Button, Input, SelectControl, TableSkeleton } from "@/components/ui/primitives";
 import { useConnection } from "@/hooks/use-connection";
 import { useProjects, useZones } from "@/hooks/use-data";
 import { copyText, errorMessage } from "@/lib/format";
@@ -158,19 +161,30 @@ export function DomainsScreen() {
         >
           Add domain
         </Button>
+        <div className="ml-auto flex shrink-0 items-center gap-3 text-dense text-muted">
+          {query.isFetching && !query.isLoading ? <span>Updating…</span> : null}
+          {query.isLoading || projects.isLoading ? null : (
+            <span className="tabular">
+              {domains.length} {domains.length === 1 ? "domain" : "domains"}
+            </span>
+          )}
+        </div>
       </ScreenToolbar>
 
       {failedSources.length > 0 ? (
         <div
           role="status"
-          className="flex items-center justify-between gap-3 border-b border-line bg-failed-soft px-4 py-2 text-[12px] text-failed"
+          className="flex items-center justify-between gap-3 border-b border-line bg-failed-soft px-6 py-2.5 text-dense text-failed-ink"
         >
-          <span className="min-w-0 truncate">
-            {failedSources.length === 1
-              ? `Domains for ${failedSources[0]} could not be loaded.`
-              : `Domains for ${failedSources.length} sources could not be loaded.`}
+          <span className="flex min-w-0 items-center gap-2">
+            <TriangleAlert className="size-3.5 shrink-0" strokeWidth={1.75} aria-hidden />
+            <span className="truncate">
+              {failedSources.length === 1
+                ? `Domains for ${failedSources[0]} could not be loaded.`
+                : `Domains for ${failedSources.length} sources could not be loaded.`}
+            </span>
           </span>
-          <Button size="sm" variant="ghost" className="shrink-0 text-failed" onClick={() => void query.refetch()}>
+          <Button size="sm" variant="ghost" className="shrink-0 text-failed-ink hover:bg-failed-ink/10" onClick={() => void query.refetch()}>
             Retry
           </Button>
         </div>
@@ -192,6 +206,13 @@ export function DomainsScreen() {
           />
         ) : (
           <table className="data-table" aria-label="Domains">
+            <colgroup>
+              <col />
+              <col style={{ width: 124 }} />
+              <col style={{ width: 180 }} />
+              <col style={{ width: 150 }} />
+              <col style={{ width: 216 }} />
+            </colgroup>
             <thead>
               <tr>
                 <th scope="col">Domain</th>
@@ -203,20 +224,17 @@ export function DomainsScreen() {
             </thead>
             <tbody>
               {domains.map((domain) => (
-                <tr key={`${domain.provider}:${domain.id}`}>
-                  <td className="align-top">
-                    <p className="font-medium">{domain.name}</p>
-                    <DomainVerification
-                      domain={domain}
-                      onWritten={() => void client.invalidateQueries({ queryKey: ["dns-records"] })}
-                    />
-                  </td>
-                  <td>
+                <Fragment key={`${domain.provider}:${domain.id}`}>
+                <tr>
+                  <td className="truncate font-medium">{domain.name}</td>
+                  <td className="truncate">
                     <ProviderMark provider={domain.provider} />
                   </td>
-                  <td>{domain.projectName}</td>
-                  <td className="text-muted">{domain.status}</td>
-                  <td className="w-0">
+                  <td className="truncate">{domain.projectName}</td>
+                  <td>
+                    <DomainStatus domain={domain} />
+                  </td>
+                  <td>
                     <div className="flex justify-end gap-1">
                       <Button
                         size="sm"
@@ -237,7 +255,7 @@ export function DomainsScreen() {
                       <Button
                         size="sm"
                         variant="ghost"
-                        className="text-failed hover:bg-failed/10 hover:text-failed"
+                        className="text-failed-ink hover:bg-failed-soft"
                         aria-label={`Remove ${domain.name}`}
                         onClick={() =>
                           ask({
@@ -271,11 +289,46 @@ export function DomainsScreen() {
                     </div>
                   </td>
                 </tr>
+                {/* Verification records live in their own recessed sub-row.
+                    Nesting them in the name cell made every row a different
+                    height and broke the table's rhythm. */}
+                {domainNeedsDns(domain) && (domain.verificationRecords ?? []).length > 0 ? (
+                  <tr>
+                    <td colSpan={5} className="h-auto whitespace-normal bg-surface-sunken py-3">
+                      <DomainVerification
+                        domain={domain}
+                        onWritten={() => void client.invalidateQueries({ queryKey: ["dns-records"] })}
+                      />
+                    </td>
+                  </tr>
+                ) : null}
+                </Fragment>
               ))}
             </tbody>
           </table>
         )}
       </div>
     </div>
+  );
+}
+
+/**
+ * Domain state as a pill. The provider strings differ between Vercel and
+ * Cloudflare, so this maps the shapes they actually return onto one vocabulary
+ * instead of printing the raw value.
+ */
+function DomainStatus({ domain }: { domain: UnifiedDomain }) {
+  const raw = (domain.status ?? "").toLowerCase();
+  const label = domain.status || (domain.verified ? "Verified" : "Unknown");
+
+  let variant: NonNullable<BadgeProps["variant"]> = "neutral";
+  if (domain.verified || /^(active|verified|ready|valid)/.test(raw)) variant = "ready";
+  else if (/(pending|initializing|verifying|provisioning|deploying)/.test(raw)) variant = "building";
+  else if (/(error|fail|invalid|misconfigur|moved|blocked|deactivat)/.test(raw)) variant = "failed";
+
+  return (
+    <Badge variant={variant} dot pulse={variant === "building"} className="capitalize">
+      {label}
+    </Badge>
   );
 }

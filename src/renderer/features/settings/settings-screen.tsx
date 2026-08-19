@@ -3,11 +3,13 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Monitor, Moon, Sun } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-import { SectionHeader, SettingRow, SettingsSection } from "@/components/ui/layout";
+import { SettingRow, SettingsSection } from "@/components/ui/layout";
+import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
 import {
   Button,
   SegmentedControl,
   SelectControl,
+  Skeleton,
   SwitchControl,
   type SegmentedControlOption,
 } from "@/components/ui/primitives";
@@ -59,7 +61,38 @@ export function SettingsScreen({ onReplaySetup }: { onReplaySetup?: () => void }
   const cloudflare = useProviderConnection("cloudflare");
   const [version, setVersion] = useState("");
 
-  if (!prefs.data) return null;
+  // Returning null here flashed an empty screen while preferences loaded. The
+  // skeleton mirrors the real section rhythm instead.
+  if (!prefs.data) {
+    return (
+      <div className="h-full overflow-auto">
+        <div className="w-full max-w-3xl px-6 pt-1 pb-14">
+          <div className="grid gap-6" role="status" aria-label="Loading settings">
+            {[2, 4, 3].map((rows, index) => (
+              <Panel key={index}>
+                <PanelHeader
+                  size="sm"
+                  title={<Skeleton className="h-3.5 w-32" />}
+                  description={<Skeleton className="mt-1 h-3 w-72" />}
+                />
+                <PanelBody padding="none" divided>
+                  {Array.from({ length: rows }).map((_, row) => (
+                    <div key={row} className="flex min-h-14 items-center justify-between gap-6 px-4 py-3">
+                      <div className="min-w-0 grow">
+                        <Skeleton className="h-3.5 w-40" />
+                        <Skeleton className="mt-1.5 h-3 w-64" />
+                      </div>
+                      <Skeleton className="h-5 w-9 shrink-0 rounded-full" />
+                    </div>
+                  ))}
+                </PanelBody>
+              </Panel>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
   const current = prefs.data;
 
   const patch = async (next: Partial<AppPreferences>) => {
@@ -73,18 +106,14 @@ export function SettingsScreen({ onReplaySetup }: { onReplaySetup?: () => void }
 
   return (
     <div className="h-full overflow-auto">
-      <div className="mx-auto w-full max-w-4xl px-6 py-7 pb-14">
-        <SectionHeader
-          title="Settings"
-          description="Manage providers, workspace behavior, and the signals DeployDeck keeps an eye on."
-        />
-
-        <div className="mt-8 space-y-8">
+      {/* The screen title and description come from the shell's PageHeader. */}
+      {/* Left-aligned, not centred, so the panels line up with the PageHeader. */}
+      <div className="w-full max-w-3xl px-6 pt-1 pb-14">
+        <div className="space-y-6">
           <SettingsSection
             size="sm"
             title="Connections"
             description="Sign-in sessions are encrypted by macOS and stay in the Electron main process."
-            className="max-w-none"
           >
             <ProviderConnectionRow provider={vercel} />
             <ProviderConnectionRow provider={cloudflare} />
@@ -94,7 +123,6 @@ export function SettingsScreen({ onReplaySetup }: { onReplaySetup?: () => void }
             size="sm"
             title="General"
             description="Choose how DeployDeck starts and where each session begins."
-            className="max-w-none"
           >
             <SettingRow label="Launch at login" description="Open DeployDeck automatically when you sign in to this Mac.">
               <SwitchControl
@@ -145,7 +173,6 @@ export function SettingsScreen({ onReplaySetup }: { onReplaySetup?: () => void }
             size="sm"
             title="Appearance"
             description="Tune the interface for your desk and the amount of deployment data you scan."
-            className="max-w-none"
           >
             <SettingRow label="Theme" description="Match macOS or keep DeployDeck in one appearance.">
               <SegmentedControl
@@ -183,7 +210,6 @@ export function SettingsScreen({ onReplaySetup }: { onReplaySetup?: () => void }
             size="sm"
             title="Refresh"
             description="Control how often DeployDeck checks providers while it is running."
-            className="max-w-none"
           >
             <SettingRow label="Background refresh" description="Keep deployments and project status current automatically.">
               <SwitchControl
@@ -228,7 +254,6 @@ export function SettingsScreen({ onReplaySetup }: { onReplaySetup?: () => void }
             size="sm"
             title="Notifications"
             description="Choose which deployment changes should interrupt you."
-            className="max-w-none"
           >
             <SettingRow label="Production succeeded" description="Notify when a production deployment becomes ready.">
               <SwitchControl
@@ -271,7 +296,6 @@ export function SettingsScreen({ onReplaySetup }: { onReplaySetup?: () => void }
             size="sm"
             title="Setup and version"
             description="Repeat the guided connection flow or check the installed build."
-            className="max-w-none"
           >
             <SettingRow label="First-run setup" description="Review provider connection and workspace defaults again.">
               <Button type="button" variant="secondary" onClick={onReplaySetup} disabled={!onReplaySetup}>

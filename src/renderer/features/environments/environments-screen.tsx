@@ -3,7 +3,17 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { EmptyState, ScreenError } from "@/components/common/empty-state";
 import { ScreenToolbar } from "@/components/ui/layout";
-import { Button, CheckboxControl, Input, Label, SelectControl, TableSkeleton } from "@/components/ui/primitives";
+import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
+import {
+  Badge,
+  type BadgeProps,
+  Button,
+  CheckboxControl,
+  Input,
+  Label,
+  SelectControl,
+  TableSkeleton,
+} from "@/components/ui/primitives";
 import { useConnection } from "@/hooks/use-connection";
 import { useProjects } from "@/hooks/use-data";
 import { errorMessage, formatWhen } from "@/lib/format";
@@ -263,136 +273,195 @@ export function EnvironmentsScreen() {
             onChange={(event) => setBranch(event.target.value)}
           />
         ) : null}
+        <div className="ml-auto flex shrink-0 items-center gap-3 text-dense text-muted">
+          {query.isFetching && !query.isLoading ? <span>Updating…</span> : null}
+          {targetId && !query.isLoading ? (
+            <span className="tabular">
+              {items.length} {items.length === 1 ? "variable" : "variables"}
+            </span>
+          ) : null}
+        </div>
       </ScreenToolbar>
 
-      <ScreenToolbar className="min-h-11">
-        <Input
-          aria-label="Variable name"
-          placeholder="VARIABLE_NAME"
-          className="max-w-48 font-mono"
-          value={key}
-          onChange={(event) => setKey(event.target.value)}
+      {!targetId ? (
+        <EmptyState
+          title={targetOptions.length > 0 ? "Select a project" : "No projects available"}
+          body={
+            targetOptions.length > 0
+              ? "Choose a project or Worker above to inspect and manage its variables."
+              : "This provider has no projects or Workers available for environment management."
+          }
         />
-        <Input
-          aria-label="Variable value"
-          type={secret ? "password" : "text"}
-          placeholder="Value"
-          className="max-w-72 font-mono"
-          value={value}
-          onChange={(event) => setValue(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") void saveVariable();
-          }}
-        />
-        <Label htmlFor="environment-secret" className="flex cursor-default items-center gap-2 text-[12px] text-ink">
-          <CheckboxControl
-            id="environment-secret"
-            checked={secret}
-            onCheckedChange={setSecret}
-            ariaLabel="Store as secret"
-          />
-          Secret
-        </Label>
-        {editing ? (
-          <Button size="sm" variant="ghost" className="text-muted" onClick={resetEditor}>
-            Cancel
-          </Button>
-        ) : null}
-        <Button
-          size="sm"
-          loading={saving}
-          disabled={!targetId || !key.trim() || !value}
-          onClick={() => void saveVariable()}
-        >
-          {editing ? "Update variable" : "Save variable"}
-        </Button>
-      </ScreenToolbar>
+      ) : (
+        <div className="min-h-0 flex-1 overflow-auto px-6 py-4">
+          <div className="grid max-w-5xl gap-4">
+            {/* This used to be a second ScreenToolbar. It is a form, so it gets
+                a panel and real field labels rather than app chrome. */}
+            <Panel>
+              <PanelHeader
+                title={editing ? `Edit ${editing.key}` : "Add a variable"}
+                description={
+                  editing
+                    ? "Saving replaces the stored value on the provider."
+                    : "Values are written straight to the provider; DeployDeck keeps no copy."
+                }
+                actions={
+                  editing ? (
+                    <Button size="sm" variant="ghost" className="text-muted" onClick={resetEditor}>
+                      Cancel
+                    </Button>
+                  ) : undefined
+                }
+              />
+              <PanelBody padding="tight" className="grid gap-3">
+                <div className="grid gap-3 min-[900px]:grid-cols-[minmax(0,1fr)_minmax(0,1.75fr)]">
+                  <div className="grid gap-1.5">
+                    <Label htmlFor="environment-key">Name</Label>
+                    <Input
+                      id="environment-key"
+                      placeholder="VARIABLE_NAME"
+                      className="font-mono"
+                      value={key}
+                      onChange={(event) => setKey(event.target.value)}
+                    />
+                  </div>
+                  <div className="grid gap-1.5">
+                    <Label htmlFor="environment-value">Value</Label>
+                    <Input
+                      id="environment-value"
+                      type={secret ? "password" : "text"}
+                      placeholder="Value"
+                      className="font-mono"
+                      value={value}
+                      onChange={(event) => setValue(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") void saveVariable();
+                      }}
+                    />
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center justify-between gap-3 pt-0.5">
+                  <Label
+                    htmlFor="environment-secret"
+                    className="flex cursor-default items-center gap-2 text-body text-ink"
+                  >
+                    <CheckboxControl
+                      id="environment-secret"
+                      checked={secret}
+                      onCheckedChange={setSecret}
+                      ariaLabel="Store as secret"
+                    />
+                    Store as a secret
+                  </Label>
+                  <Button
+                    loading={saving}
+                    disabled={!key.trim() || !value}
+                    onClick={() => void saveVariable()}
+                  >
+                    {editing ? "Update variable" : "Save variable"}
+                  </Button>
+                </div>
+              </PanelBody>
+            </Panel>
 
-      <div className="min-h-0 flex-1 overflow-auto">
-        {!targetId ? (
-          <EmptyState
-            title={targetOptions.length > 0 ? "Select a project" : "No projects available"}
-            body={
-              targetOptions.length > 0
-                ? "Choose a project or Worker above to inspect and manage its variables."
-                : "This provider has no projects or Workers available for environment management."
-            }
-          />
-        ) : query.isError ? (
-          <ScreenError message={errorMessage(query.error)} onRetry={() => void query.refetch()} />
-        ) : query.isLoading ? (
-          <TableSkeleton columns={5} label="Loading variables" />
-        ) : items.length === 0 ? (
-          <EmptyState
-            title="No variables"
-            body="Create the first variable for this project or Worker using the toolbar above."
-          />
-        ) : (
-          <table className="data-table" aria-label="Environment variables">
-            <thead>
-              <tr>
-                <th scope="col">Name</th>
-                <th scope="col">Type</th>
-                <th scope="col">Target</th>
-                <th scope="col">Updated</th>
-                <th scope="col">Value</th>
-                <th scope="col" aria-label="Actions" />
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((item) => (
-                <EnvTableRow
-                  key={item.id}
-                  item={item}
-                  editing={editing?.id === item.id}
-                  onEdit={() => void beginEdit(item)}
-                  onReveal={
-                    provider === "vercel" && targetId
-                      ? () => window.deployDeck.vercel.revealEnvVar(targetId, item.id)
-                      : undefined
-                  }
-                  onDelete={() =>
-                    ask({
-                      title: "Delete environment variable",
-                      body: item.key,
-                      actionLabel: "Delete",
-                      onConfirm: async () => {
-                        try {
-                          if (provider === "vercel") {
-                            await window.deployDeck.vercel.deleteEnvVar(targetId, item.id);
-                          } else if (provider === "cloudflare-pages") {
-                            const [accountId, name] = targetId.split("::");
-                            await window.deployDeck.cloudflare.deletePagesEnv(
-                              accountId,
-                              name,
-                              env === "preview" ? "preview" : "production",
-                              item.key,
-                            );
-                          } else {
-                            const [accountId, name] = targetId.split("::");
-                            if (item.type === "secret") {
-                              await window.deployDeck.cloudflare.deleteWorkerSecret(accountId, name, item.key);
-                            } else {
-                              await window.deployDeck.cloudflare.deleteWorkerVar(accountId, name, item.key);
-                            }
-                          }
-                          toast.success("Variable deleted");
-                          await client.invalidateQueries({ queryKey: ["env-manager"] });
-                        } catch (error) {
-                          toast.error(errorMessage(error));
-                        }
-                      },
-                    })
-                  }
+            <Panel>
+              <PanelHeader title="Variables" count={query.isLoading ? undefined : items.length} size="sm" />
+              {query.isError ? (
+                <ScreenError size="inline" message={errorMessage(query.error)} onRetry={() => void query.refetch()} />
+              ) : query.isLoading ? (
+                <TableSkeleton columns={5} label="Loading variables" />
+              ) : items.length === 0 ? (
+                <EmptyState
+                  size="inline"
+                  title="No variables yet"
+                  body="Add the first variable for this project or Worker using the form above."
                 />
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+              ) : (
+                <div className="overflow-auto">
+              <table className="data-table" aria-label="Environment variables">
+                <colgroup>
+                  <col style={{ width: 220 }} />
+                  <col style={{ width: 116 }} />
+                  <col style={{ width: 200 }} />
+                  <col style={{ width: 150 }} />
+                  <col />
+                  <col style={{ width: 220 }} />
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th scope="col">Name</th>
+                    <th scope="col">Type</th>
+                    <th scope="col">Target</th>
+                    <th scope="col">Updated</th>
+                    <th scope="col">Value</th>
+                    <th scope="col" aria-label="Actions" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {items.map((item) => (
+                    <EnvTableRow
+                      key={item.id}
+                      item={item}
+                      editing={editing?.id === item.id}
+                      onEdit={() => void beginEdit(item)}
+                      onReveal={
+                        provider === "vercel" && targetId
+                          ? () => window.deployDeck.vercel.revealEnvVar(targetId, item.id)
+                          : undefined
+                      }
+                      onDelete={() =>
+                        ask({
+                          title: "Delete environment variable",
+                          body: item.key,
+                          actionLabel: "Delete",
+                          onConfirm: async () => {
+                            try {
+                              if (provider === "vercel") {
+                                await window.deployDeck.vercel.deleteEnvVar(targetId, item.id);
+                              } else if (provider === "cloudflare-pages") {
+                                const [accountId, name] = targetId.split("::");
+                                await window.deployDeck.cloudflare.deletePagesEnv(
+                                  accountId,
+                                  name,
+                                  env === "preview" ? "preview" : "production",
+                                  item.key,
+                                );
+                              } else {
+                                const [accountId, name] = targetId.split("::");
+                                if (item.type === "secret") {
+                                  await window.deployDeck.cloudflare.deleteWorkerSecret(accountId, name, item.key);
+                                } else {
+                                  await window.deployDeck.cloudflare.deleteWorkerVar(accountId, name, item.key);
+                                }
+                              }
+                              toast.success("Variable deleted");
+                              await client.invalidateQueries({ queryKey: ["env-manager"] });
+                            } catch (error) {
+                              toast.error(errorMessage(error));
+                            }
+                          },
+                        })
+                      }
+                    />
+                  ))}
+                </tbody>
+              </table>
+                </div>
+              )}
+            </Panel>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+
+const ENV_TYPE_VARIANT: Record<string, NonNullable<BadgeProps["variant"]>> = {
+  secret: "warning",
+  encrypted: "warning",
+  sensitive: "warning",
+  plain: "neutral",
+};
 
 function EnvTableRow({
   item,
@@ -427,14 +496,32 @@ function EnvTableRow({
     }
   };
 
+  const targets = [...item.targets, item.branch].filter(Boolean) as string[];
+
   return (
     <tr>
-      <td className="font-mono font-medium">{item.key}</td>
-      <td>{item.type}</td>
-      <td>{[item.targets.join(", "), item.branch].filter(Boolean).join(" · ") || "—"}</td>
-      <td className="tabular text-muted">{formatWhen(item.updatedAt, "absolute")}</td>
-      <td className="max-w-80 truncate font-mono">{revealedValue ?? item.value ?? "••••••"}</td>
-      <td className="w-0">
+      <td className="truncate font-mono font-medium">{item.key}</td>
+      <td>
+        <Badge variant={ENV_TYPE_VARIANT[item.type] ?? "neutral"} className="capitalize">
+          {item.type}
+        </Badge>
+      </td>
+      <td className="truncate">
+        {targets.length === 0 ? (
+          <span className="text-muted">—</span>
+        ) : (
+          <span className="flex items-center gap-1">
+            {targets.map((target) => (
+              <Badge key={target} variant="outline" className="capitalize">
+                {target}
+              </Badge>
+            ))}
+          </span>
+        )}
+      </td>
+      <td data-numeric className="text-muted">{formatWhen(item.updatedAt, "absolute")}</td>
+      <td className="truncate font-mono text-dense">{revealedValue ?? item.value ?? "••••••"}</td>
+      <td>
         <div className="flex justify-end gap-1">
           <Button
             size="sm"
@@ -459,7 +546,7 @@ function EnvTableRow({
           <Button
             size="sm"
             variant="ghost"
-            className="text-failed hover:bg-failed/10 hover:text-failed"
+            className="text-failed-ink hover:bg-failed-soft"
             aria-label={`Delete ${item.key}`}
             onClick={onDelete}
           >

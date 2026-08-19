@@ -1,5 +1,21 @@
-import { formatDistanceToNowStrict, format as formatDate } from "date-fns";
+import { formatDistanceToNowStrict, format as formatDate, isThisYear, isToday, isYesterday } from "date-fns";
 import type { DeploymentState, Provider } from "@shared/models";
+
+/** Stable key for grouping a timeline by calendar day. */
+export function dayKey(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "unknown";
+  return formatDate(date, "yyyy-MM-dd");
+}
+
+/** Heading for a day group: relative for the recent past, dated before that. */
+export function dayLabel(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "Unknown date";
+  if (isToday(date)) return "Today";
+  if (isYesterday(date)) return "Yesterday";
+  return formatDate(date, isThisYear(date) ? "EEEE, MMM d" : "MMM d, yyyy");
+}
 
 export function formatWhen(iso: string | undefined, mode: "relative" | "absolute"): string {
   if (!iso) return "—";

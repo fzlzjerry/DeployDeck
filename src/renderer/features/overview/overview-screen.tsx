@@ -3,11 +3,18 @@ import type { ReactNode } from "react";
 import type { DeploymentFilters, DeploymentState, UnifiedDeployment } from "@shared/models";
 import { EmptyState, ScreenError } from "@/components/common/empty-state";
 import { StatusBadge } from "@/components/common/status-badge";
+import {
+  Panel,
+  PanelBody,
+  PanelHeader,
+  PanelRow,
+  Readout,
+  ReadoutStrip,
+} from "@/components/ui/panel";
 import { Button, Skeleton } from "@/components/ui/primitives";
 import { useConnection, usePrefs } from "@/hooks/use-connection";
 import { useActivity, useProjects, useUnifiedDeployments } from "@/hooks/use-data";
 import { errorMessage, formatWhen, providerLabel } from "@/lib/format";
-import { cn } from "@/lib/cn";
 import { useUiStore } from "@/stores/ui-store";
 
 const OVERVIEW_FILTERS: DeploymentFilters = {
@@ -68,43 +75,49 @@ export function OverviewScreen() {
   }
 
   return (
-    <div className="h-full overflow-auto" aria-busy={deployments.isLoading || undefined}>
-      <section className="border-b border-line px-5 py-4" aria-labelledby="deployment-pulse-title">
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <h2 id="deployment-pulse-title" className="text-[13px] font-semibold tracking-[-0.01em]">
-              Deployment pulse
-            </h2>
-            <p className="mt-0.5 truncate text-[11px] text-muted">
-              Loaded snapshot across {providerSummary || "connected providers"}
-            </p>
-          </div>
-          <Button variant="ghost" size="sm" className="-mr-2 shrink-0 text-muted" onClick={() => showDeployments()}>
-            All deployments
-            <ArrowRight className="size-3.5" aria-hidden />
-          </Button>
-        </div>
-        <dl className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-2 text-[12px]">
-          <Signal label="In progress" value={activeItems.length} tone="building" loading={deployments.isLoading} />
-          <Signal label="Failed" value={failedItems.length} tone="failed" loading={deployments.isLoading} />
-          <Signal label="Ready" value={readyItems.length} tone="ready" loading={deployments.isLoading} />
-          <div className="ml-auto flex items-center gap-1.5 text-muted tabular">
-            <dt>Loaded</dt>
-            <dd className="font-medium text-ink">{deployments.isLoading ? "—" : items.length}</dd>
-          </div>
-        </dl>
+    <div className="h-full overflow-auto px-6 pb-8" aria-busy={deployments.isLoading || undefined}>
+      {/* A readout strip, not a row of metric tiles: PRODUCT.md rules out
+          giant metric cards and uptime theatre. */}
+      <Panel>
+        <PanelHeader
+          title="Deployment pulse"
+          description={`Loaded snapshot across ${providerSummary || "connected providers"}`}
+          actions={
+            <Button variant="ghost" size="sm" className="text-muted" onClick={() => showDeployments()}>
+              All deployments
+              <ArrowRight aria-hidden />
+            </Button>
+          }
+        />
+        <PanelBody padding="tight">
+          <ReadoutStrip>
+            <Readout
+              label="In progress"
+              tone="building"
+              value={deployments.isLoading ? "—" : activeItems.length}
+            />
+            <Readout label="Failed" tone="failed" value={deployments.isLoading ? "—" : failedItems.length} />
+            <Readout label="Ready" tone="ready" value={deployments.isLoading ? "—" : readyItems.length} />
+            <div className="ml-auto">
+              <Readout label="Loaded" value={deployments.isLoading ? "—" : items.length} />
+            </div>
+          </ReadoutStrip>
+        </PanelBody>
         {deployments.isError ? (
-          <div className="mt-3 flex items-center justify-between gap-3 border-t border-line pt-3 text-[12px]" role="alert">
-            <span className="text-failed">The deployment snapshot could not be refreshed.</span>
-            <Button variant="ghost" size="sm" onClick={() => void deployments.refetch()}>
+          <div
+            className="flex flex-wrap items-center justify-between gap-3 border-t border-line px-4 py-2.5"
+            role="alert"
+          >
+            <span className="text-dense text-failed-ink">The deployment snapshot could not be refreshed.</span>
+            <Button variant="outline" size="sm" onClick={() => void deployments.refetch()}>
               Retry
             </Button>
           </div>
         ) : null}
-      </section>
+      </Panel>
 
-      <div className="grid grid-cols-[minmax(0,1.25fr)_minmax(260px,0.75fr)] gap-x-8 px-5 pb-6 max-[1100px]:grid-cols-1">
-        <div className="min-w-0">
+      <div className="mt-4 grid items-start gap-4 grid-cols-[minmax(0,1.3fr)_minmax(300px,0.7fr)] max-[1180px]:grid-cols-1">
+        <div className="grid min-w-0 gap-4">
           <Section
             title="Needs attention"
             count={activeItems.length + failedItems.length}
@@ -113,10 +126,19 @@ export function OverviewScreen() {
             {deployments.isLoading ? (
               <LoadingRows count={4} />
             ) : attentionItems.length === 0 ? (
-              <EmptyRow>Nothing is building or failing in the loaded snapshot.</EmptyRow>
+              <EmptyState
+                size="inline"
+                title="Nothing needs attention"
+                body="Deployments that are queued, building, or failed will surface here first."
+              />
             ) : (
               attentionItems.map((item) => (
-                <DeploymentRow key={`${item.provider}:${item.id}`} item={item} timeFormat={timeFormat} onOpen={openDeployment} />
+                <DeploymentRow
+                  key={`${item.provider}:${item.id}`}
+                  item={item}
+                  timeFormat={timeFormat}
+                  onOpen={openDeployment}
+                />
               ))
             )}
           </Section>
@@ -127,21 +149,28 @@ export function OverviewScreen() {
             ) : activity.isError ? (
               <ScreenError size="inline" message={errorMessage(activity.error)} onRetry={() => void activity.refetch()} />
             ) : (activity.data ?? []).length === 0 ? (
-              <EmptyRow>Retries, promotions, and DNS edits made here will appear in this timeline.</EmptyRow>
+              <EmptyState
+                size="inline"
+                title="No local actions yet"
+                body="Retries, promotions, and DNS edits you make here will appear in this timeline."
+              />
             ) : (
               (activity.data ?? []).slice(0, 6).map((item) => (
-                <div key={item.id} className="flex min-h-9 items-center justify-between gap-4 border-b border-line/70 py-2 last:border-0">
-                  <span className="min-w-0 truncate text-[12px]">{item.title}</span>
-                  <time className="shrink-0 text-[11px] text-muted tabular" dateTime={item.at}>
-                    {formatWhen(item.at, timeFormat)}
-                  </time>
-                </div>
+                <PanelRow
+                  key={item.id}
+                  title={item.title}
+                  trailing={
+                    <time className="text-dense text-muted tabular" dateTime={item.at}>
+                      {formatWhen(item.at, timeFormat)}
+                    </time>
+                  }
+                />
               ))
             )}
           </Section>
         </div>
 
-        <div className="min-w-0">
+        <div className="grid min-w-0 gap-4">
           <Section
             title="Recently ready"
             count={readyItems.length}
@@ -150,7 +179,11 @@ export function OverviewScreen() {
             {deployments.isLoading ? (
               <LoadingRows count={4} />
             ) : recentReady.length === 0 ? (
-              <EmptyRow>No ready deployments are loaded yet.</EmptyRow>
+              <EmptyState
+                size="inline"
+                title="Nothing shipped yet"
+                body="Successful deployments from the loaded snapshot land here."
+              />
             ) : (
               recentReady.map((item) => (
                 <DeploymentRow
@@ -170,54 +203,28 @@ export function OverviewScreen() {
             ) : projects.isError ? (
               <ScreenError size="inline" message={errorMessage(projects.error)} onRetry={() => void projects.refetch()} />
             ) : projectItems.length === 0 ? (
-              <EmptyRow>Projects will appear after the first refresh.</EmptyRow>
+              <EmptyState
+                size="inline"
+                title="No projects loaded"
+                body="Projects and Workers appear after the first refresh completes."
+              />
             ) : (
               projectItems.map((project) => (
-                <div
+                <PanelRow
                   key={`${project.provider}:${project.id}`}
-                  className="flex min-h-9 items-center justify-between gap-4 border-b border-line/70 py-2 last:border-0"
-                >
-                  <div className="min-w-0">
-                    <p className="truncate text-[12px] font-medium">{project.name}</p>
-                    <p className="mt-0.5 truncate text-[10px] text-muted">{providerLabel(project.provider)}</p>
-                  </div>
-                  <time className="shrink-0 text-[11px] text-muted tabular" dateTime={project.updatedAt}>
-                    {formatWhen(project.updatedAt, timeFormat)}
-                  </time>
-                </div>
+                  title={project.name}
+                  description={providerLabel(project.provider)}
+                  trailing={
+                    <time className="text-dense text-muted tabular" dateTime={project.updatedAt}>
+                      {formatWhen(project.updatedAt, timeFormat)}
+                    </time>
+                  }
+                />
               ))
             )}
           </Section>
         </div>
       </div>
-    </div>
-  );
-}
-
-function Signal({
-  label,
-  value,
-  tone,
-  loading,
-}: {
-  label: string;
-  value: number;
-  tone: "building" | "failed" | "ready";
-  loading: boolean;
-}) {
-  return (
-    <div className="flex items-center gap-1.5">
-      <span
-        className={cn(
-          "size-1.5 rounded-full",
-          tone === "building" && "bg-building",
-          tone === "failed" && "bg-failed",
-          tone === "ready" && "bg-ready",
-        )}
-        aria-hidden
-      />
-      <dt className="text-muted">{label}</dt>
-      <dd className="font-medium text-ink tabular">{loading ? "—" : value}</dd>
     </div>
   );
 }
@@ -234,21 +241,24 @@ function Section({
   children: ReactNode;
 }) {
   return (
-    <section className="mt-5 min-w-0 border-t border-line pt-3">
-      <div className="mb-1 flex min-h-7 items-center justify-between gap-3">
-        <h2 className="text-[12px] font-semibold">
-          {title}
-          {typeof count === "number" ? <span className="ml-1.5 font-normal text-muted tabular">{count}</span> : null}
-        </h2>
-        {action ? (
-          <Button variant="ghost" size="sm" className="-mr-2 h-7 shrink-0 text-[11px] text-muted" onClick={action.onClick}>
-            {action.label}
-            <ArrowRight className="size-3" aria-hidden />
-          </Button>
-        ) : null}
-      </div>
-      <div>{children}</div>
-    </section>
+    <Panel>
+      <PanelHeader
+        title={title}
+        count={count}
+        size="sm"
+        actions={
+          action ? (
+            <Button variant="ghost" size="sm" className="text-muted" onClick={action.onClick}>
+              {action.label}
+              <ArrowRight aria-hidden />
+            </Button>
+          ) : undefined
+        }
+      />
+      <PanelBody padding="none" divided>
+        {children}
+      </PanelBody>
+    </Panel>
   );
 }
 
@@ -266,43 +276,43 @@ function DeploymentRow({
   const context = [providerLabel(item.provider), item.environment, item.branch].filter(Boolean).join(" · ");
 
   return (
-    <button
-      type="button"
-      className={cn(
-        "group flex min-h-10 w-full items-center justify-between gap-4 border-b border-line/70 px-2 py-2 text-left last:border-0",
-        "-mx-2 rounded-md transition-colors duration-150 ease-[var(--ease-out-expo)] motion-reduce:transition-none",
-        "hover:bg-surface focus-visible:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]",
-      )}
-      onClick={() => onOpen(item)}
-    >
-      <div className="min-w-0">
-        <p className="truncate text-[12px] font-medium text-ink">{item.projectName}</p>
-        <p className="mt-0.5 truncate text-[10px] text-muted">{context}</p>
-      </div>
-      <div className="flex shrink-0 items-center gap-3">
-        {!compact ? <StatusBadge state={item.state} /> : null}
-        <time className="text-[11px] text-muted tabular" dateTime={item.createdAt}>
-          {formatWhen(item.createdAt, timeFormat)}
-        </time>
-        <ArrowRight className="size-3 text-muted opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" aria-hidden />
-      </div>
-    </button>
+    <PanelRow
+      onActivate={() => onOpen(item)}
+      activateLabel={`Inspect ${item.projectName}`}
+      title={item.projectName}
+      description={context}
+      // Every row in the compact panel is already "ready", so the pill would
+      // repeat the panel title.
+      leading={compact ? undefined : <StatusBadge state={item.state} />}
+      trailing={
+        <>
+          <time className="text-dense text-muted tabular" dateTime={item.createdAt}>
+            {formatWhen(item.createdAt, timeFormat)}
+          </time>
+          <ArrowRight
+            className="size-3.5 text-muted opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100 motion-reduce:transition-none"
+            aria-hidden
+          />
+        </>
+      }
+    />
   );
 }
 
-function EmptyRow({ children }: { children: string }) {
-  return <EmptyState size="inline" title={children} />;
-}
-
+/** Direct children so the panel's own dividers land between rows. */
 function LoadingRows({ count }: { count: number }) {
   return (
-    <div aria-hidden>
+    <>
       {Array.from({ length: count }).map((_, index) => (
-        <div key={index} className="flex min-h-10 items-center justify-between gap-6 border-b border-line/70 py-2 last:border-0">
+        <div
+          key={index}
+          aria-hidden
+          className="flex min-h-11 items-center justify-between gap-6 px-4 py-2"
+        >
           <Skeleton className="h-3 w-2/5" />
           <Skeleton className="h-3 w-20" />
         </div>
       ))}
-    </div>
+    </>
   );
 }

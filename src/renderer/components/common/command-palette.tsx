@@ -84,27 +84,27 @@ export function CommandPalette() {
   return (
     <Dialog.Root open={open} onOpenChange={setOpen}>
       <Dialog.Portal>
-        <Dialog.Overlay className="modal-overlay z-40" />
+        <Dialog.Overlay className="modal-overlay" />
         <Dialog.Content
           aria-describedby="command-description"
-          className="command-content fixed top-24 left-1/2 z-50 w-[min(600px,calc(100vw-48px))] -translate-x-1/2 outline-none"
+          className="command-content fixed top-24 left-1/2 z-[var(--z-modal)] w-[min(640px,calc(100vw-48px))] -translate-x-1/2 outline-none"
         >
           <Dialog.Title className="sr-only">Search DeployDeck</Dialog.Title>
           <Dialog.Description id="command-description" className="sr-only">
             Navigate screens, open projects and deployments, or run workspace actions.
           </Dialog.Description>
-          <Command className="overflow-hidden rounded-xl bg-bg shadow-[var(--shadow-popover)]">
-            <div className="flex h-12 items-center gap-2.5 border-b border-line px-3">
-              <Search className="size-4 text-muted" aria-hidden />
+          <Command className="overflow-hidden rounded-panel bg-panel shadow-[var(--shadow-popover)]">
+            <div className="flex h-13 items-center gap-2.5 border-b border-line px-4">
+              <Search className="size-4 text-muted" strokeWidth={1.75} aria-hidden />
               <Command.Input
                 autoFocus
-                className="min-w-0 flex-1 bg-transparent text-[14px] text-ink outline-none placeholder:text-muted"
+                className="min-w-0 flex-1 bg-transparent text-section text-ink outline-none placeholder:text-muted"
                 placeholder="Search screens, projects, deployments…"
               />
               <Kbd>esc</Kbd>
             </div>
-            <Command.List className="max-h-[420px] overflow-auto p-1.5">
-              <Command.Empty className="px-3 py-10 text-center text-[12px] text-muted">
+            <Command.List className="max-h-[440px] overflow-auto p-1.5">
+              <Command.Empty className="px-3 py-12 text-center text-dense text-muted">
                 No matching screen, project, or action
               </Command.Empty>
               <Command.Group heading="Navigate" className="command-group">
@@ -364,12 +364,12 @@ function Item({
 }) {
   return (
     <Command.Item
-      className="flex min-h-9 cursor-default items-center gap-2.5 rounded-md px-2.5 text-[13px] text-ink outline-none data-[selected=true]:bg-surface-2"
+      className="flex min-h-10 cursor-default items-center gap-2.5 rounded-md px-2.5 text-body text-ink outline-none data-[selected=true]:bg-surface-2"
       onSelect={onSelect}
     >
       {icon ? <span className="text-muted [&>svg]:size-3.5 [&>svg]:shrink-0" aria-hidden>{icon}</span> : null}
       <span className="min-w-0 flex-1 truncate">{children}</span>
-      {detail ? <span className="shrink-0 text-[11px] capitalize text-subtle">{detail}</span> : null}
+      {detail ? <span className="shrink-0 text-label capitalize text-subtle">{detail}</span> : null}
     </Command.Item>
   );
 }

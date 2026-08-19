@@ -20,6 +20,7 @@ export async function addActivity(entry: Omit<LocalActivityEntry, "id" | "at"> &
     detail: entry.detail,
     projectName: entry.projectName,
     targetId: entry.targetId,
+    accountId: entry.accountId,
   };
   const items = [next, ...(store.get("activity") ?? [])].slice(0, MAX_ACTIVITY);
   store.set("activity", items);
@@ -34,7 +35,7 @@ export async function clearActivity(): Promise<void> {
 export function activityFromMutation(
   kind: ActivityKind,
   title: string,
-  extras: Partial<Pick<LocalActivityEntry, "detail" | "projectName" | "targetId" | "provider">> = {},
+  extras: Partial<Pick<LocalActivityEntry, "detail" | "projectName" | "targetId" | "accountId" | "provider">> = {},
 ): Omit<LocalActivityEntry, "id" | "at"> {
   return { kind, title, ...extras };
 }

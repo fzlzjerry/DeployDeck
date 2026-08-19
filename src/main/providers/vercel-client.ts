@@ -288,6 +288,36 @@ export async function redeployVercelDeployment(id: string, target?: "production"
   });
 }
 
+export async function deployVercelLatest(
+  projectId: string,
+  target: "production" | "preview" = "production",
+): Promise<UnifiedDeployment> {
+  return wrapProvider("vercel", async () => {
+    const vercel = await client();
+    const scope = await loadVercelScope();
+    const project = await getVercelProject(projectId);
+    try {
+      const created = (await vercel.deployments.createDeployment({
+        teamId: scope.teamId,
+        requestBody: {
+          name: project.name,
+          project: projectId,
+          target,
+        },
+      })) as unknown as Record<string, unknown>;
+      const account = vercelAccount(scope.teamId ?? null, scope.teamName, scope.userName);
+      return normalizeVercelDeployment(created, account, project.name);
+    } catch {
+      const latest = await listVercelDeployments({ projectId, environment: target, limit: 1 });
+      const source = latest.items[0] ?? (await listVercelDeployments({ projectId, limit: 1 })).items[0];
+      if (!source) {
+        throw new Error("No existing deployment is available to redeploy.");
+      }
+      return redeployVercelDeployment(source.id, target);
+    }
+  });
+}
+
 export async function promoteVercelDeployment(id: string, projectId: string): Promise<void> {
   await wrapProvider("vercel", async () => {
     const vercel = await client();

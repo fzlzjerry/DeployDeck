@@ -19,7 +19,7 @@ import { Kbd } from "@/components/ui/primitives";
 import { useConnection } from "@/hooks/use-connection";
 import { useProjects, useUnifiedDeployments, useZones } from "@/hooks/use-data";
 import { copyText } from "@/lib/format";
-import { useUiStore } from "@/stores/ui-store";
+import { projectToFocus, useUiStore } from "@/stores/ui-store";
 
 const SCREEN_ICONS: Record<Screen, typeof Gauge> = {
   overview: Gauge,
@@ -37,6 +37,8 @@ export function CommandPalette() {
   const setOpen = useUiStore((state) => state.setCommandOpen);
   const setScreen = useUiStore((state) => state.setScreen);
   const openDeployment = useUiStore((state) => state.openDeployment);
+  const openProject = useUiStore((state) => state.openProject);
+  const openZone = useUiStore((state) => state.openZone);
   const connection = useConnection();
   const projects = useProjects();
   const deployments = useUnifiedDeployments({ provider: "all" });
@@ -110,11 +112,33 @@ export function CommandPalette() {
                       icon={<Boxes />}
                       detail={project.provider === "vercel" ? "Vercel" : "Cloudflare"}
                       onSelect={() => {
-                        setScreen("projects");
+                        openProject(projectToFocus(project));
                         setOpen(false);
                       }}
                     >
                       {project.name}
+                    </Item>
+                  ))}
+                </Command.Group>
+              ) : null}
+              {(projects.data?.workers ?? []).length > 0 ? (
+                <Command.Group heading="Workers" className="command-group">
+                  {(projects.data?.workers ?? []).slice(0, 8).map((worker) => (
+                    <Item
+                      key={`worker:${worker.accountId}:${worker.name}`}
+                      icon={<Cloud />}
+                      detail="Workers"
+                      onSelect={() => {
+                        openProject({
+                          kind: "worker",
+                          accountId: worker.accountId,
+                          accountName: worker.accountName,
+                          name: worker.name,
+                        });
+                        setOpen(false);
+                      }}
+                    >
+                      {worker.name}
                     </Item>
                   ))}
                 </Command.Group>
@@ -144,7 +168,7 @@ export function CommandPalette() {
               {(zones.data ?? []).length > 0 ? (
                 <Command.Group heading="DNS zones" className="command-group">
                   {(zones.data ?? []).slice(0, 10).map((zone) => (
-                    <Item key={zone.id} icon={<Waypoints />} onSelect={() => { setScreen("dns"); setOpen(false); }}>
+                    <Item key={zone.id} icon={<Waypoints />} onSelect={() => { openZone(zone.id); setOpen(false); }}>
                       {zone.name}
                     </Item>
                   ))}

@@ -12,6 +12,7 @@ import type {
   WorkerScript,
   WorkerVersion,
 } from "@shared/models";
+import { pagesVerificationRecords } from "@shared/domain-verification";
 import {
   cloudflarePagesDeploymentUrl,
   cloudflarePagesUrl,
@@ -145,6 +146,7 @@ export function normalizePagesDomain(
     verified: text(domain.status) === "active",
     certificateStatus: text(cert.status) ?? text(domain.certificate_status),
     verificationStatus: text(validation.status) ?? text(domain.status),
+    verificationRecords: pagesVerificationRecords(domain, projectName),
   };
 }
 

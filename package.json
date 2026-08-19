@@ -11,7 +11,7 @@
     "typecheck": "tsc --noEmit",
     "package": "node scripts/make-macos.mjs --package-only",
     "make": "node scripts/make-macos.mjs",
-    "test": "node --import tsx --test src/shared/normalize.test.ts"
+    "test": "node --import tsx --test src/shared/normalize.test.ts src/shared/watch.test.ts"
   },
   "keywords": [
     "electron",

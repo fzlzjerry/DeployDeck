@@ -39,6 +39,7 @@ export type IpcChannel =
   | "vercel:cancelDeployment"
   | "vercel:redeploy"
   | "vercel:promote"
+  | "vercel:deployLatest"
   | "vercel:deleteDeployment"
   | "vercel:domains"
   | "vercel:addDomain"
@@ -55,6 +56,7 @@ export type IpcChannel =
   | "cloudflare:pagesDeployments"
   | "cloudflare:pagesDeployment"
   | "cloudflare:pagesLogs"
+  | "cloudflare:createPagesDeployment"
   | "cloudflare:retryPagesDeployment"
   | "cloudflare:rollbackPagesDeployment"
   | "cloudflare:deletePagesDeployment"
@@ -72,6 +74,8 @@ export type IpcChannel =
   | "cloudflare:deployWorkerVersion"
   | "cloudflare:restoreWorkerDeployment"
   | "cloudflare:workerRoutes"
+  | "cloudflare:createWorkerRoute"
+  | "cloudflare:deleteWorkerRoute"
   | "cloudflare:workerDomains"
   | "cloudflare:attachWorkerDomain"
   | "cloudflare:detachWorkerDomain"
@@ -108,6 +112,7 @@ export type HostEvent =
   | "host:refresh"
   | "host:refresh-all"
   | "host:open-command-palette"
+  | "host:open-selected"
   | "host:worker-tail"
   | "host:tray-snapshot-needed";
 
@@ -170,6 +175,7 @@ export interface DeployDeckApi {
     cancelDeployment(id: string): Promise<void>;
     redeploy(id: string, target?: "production" | "preview"): Promise<UnifiedDeployment>;
     promote(id: string, projectId: string): Promise<void>;
+    deployLatest(projectId: string, target?: "production" | "preview"): Promise<UnifiedDeployment>;
     deleteDeployment(id: string): Promise<void>;
     listDomains(projectId: string): Promise<UnifiedDomain[]>;
     addDomain(projectId: string, name: string): Promise<UnifiedDomain>;
@@ -187,6 +193,7 @@ export interface DeployDeckApi {
     listPagesDeployments(query: DeploymentListQuery & { accountId?: string; projectName?: string }): Promise<Paginated<UnifiedDeployment>>;
     getPagesDeployment(accountId: string, projectName: string, deploymentId: string): Promise<PagesDeploymentDetail>;
     getPagesLogs(accountId: string, projectName: string, deploymentId: string): Promise<DeploymentLogEntry[]>;
+    createPagesDeployment(accountId: string, projectName: string): Promise<void>;
     retryPagesDeployment(accountId: string, projectName: string, deploymentId?: string): Promise<void>;
     rollbackPagesDeployment(accountId: string, projectName: string, deploymentId: string): Promise<void>;
     deletePagesDeployment(accountId: string, projectName: string, deploymentId: string): Promise<void>;
@@ -203,7 +210,9 @@ export interface DeployDeckApi {
     listWorkerDeployments(accountId: string, scriptName: string): Promise<WorkerDeployment[]>;
     deployWorkerVersion(accountId: string, scriptName: string, versionId: string, percentage?: number, previousVersionId?: string): Promise<void>;
     restoreWorkerDeployment(accountId: string, scriptName: string, deploymentId: string): Promise<void>;
-    listWorkerRoutes(accountId: string, scriptName?: string): Promise<Array<{ id: string; pattern: string; script: string; zoneName?: string }>>;
+    listWorkerRoutes(accountId: string, scriptName?: string): Promise<Array<{ id: string; pattern: string; script: string; zoneId?: string; zoneName?: string }>>;
+    createWorkerRoute(zoneId: string, pattern: string, scriptName: string): Promise<void>;
+    deleteWorkerRoute(zoneId: string, routeId: string): Promise<void>;
     listWorkerDomains(accountId: string, scriptName?: string): Promise<UnifiedDomain[]>;
     attachWorkerDomain(accountId: string, scriptName: string, hostname: string, zoneId: string): Promise<void>;
     detachWorkerDomain(accountId: string, domainId: string): Promise<void>;

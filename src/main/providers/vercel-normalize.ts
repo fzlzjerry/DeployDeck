@@ -7,6 +7,7 @@ import type {
   UnifiedProject,
   VercelDeploymentDetail,
 } from "@shared/models";
+import { vercelVerificationRecords } from "@shared/domain-verification";
 import { gitRepositoryUrl, httpsUrl, vercelDeploymentUrl, vercelProjectUrl } from "@shared/provider-types";
 import { redactJson } from "@shared/redact";
 import { inferLogLevel, vercelEnvironment, vercelState } from "@shared/status";
@@ -154,6 +155,7 @@ export function normalizeVercelDomain(
     verificationStatus: Array.isArray(domain.verification)
       ? (domain.verification as LooseRecord[]).map((item) => text(item.type) ?? text(item.reason)).filter(Boolean).join(", ")
       : undefined,
+    verificationRecords: vercelVerificationRecords(domain.verification),
     apex: Boolean(domain.apexName && domain.apexName === domain.name),
     redirectTo: text(domain.redirect),
     createdAt: domain.createdAt ? new Date(Number(domain.createdAt)).toISOString() : undefined,

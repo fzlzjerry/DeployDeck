@@ -43,7 +43,8 @@ const SORT_OPTIONS = [
 export function DnsScreen() {
   const connection = useConnection();
   const zones = useZones();
-  const [zoneId, setZoneId] = useState<string>();
+  const focusedZoneId = useUiStore((state) => state.selectedZoneId);
+  const [zoneId, setZoneId] = useState<string | undefined>(focusedZoneId);
   const [zoneSearch, setZoneSearch] = useState("");
   const [search, setSearch] = useState("");
   const [type, setType] = useState<DnsRecordType | "all">("all");
@@ -52,7 +53,7 @@ export function DnsScreen() {
   const [editing, setEditing] = useState<Partial<DnsRecord> | null>(null);
   const client = useQueryClient();
   const ask = useUiStore((state) => state.askConfirm);
-  const selectedZone = (zones.data ?? []).find((zone) => zone.id === zoneId) ?? zones.data?.[0];
+  const selectedZone = (zones.data ?? []).find((zone) => zone.id === (zoneId ?? focusedZoneId)) ?? zones.data?.[0];
 
   const visibleZones = useMemo(() => {
     const query = zoneSearch.trim().toLocaleLowerCase();
@@ -84,6 +85,7 @@ export function DnsScreen() {
 
   const selectZone = (nextZoneId: string) => {
     setZoneId(nextZoneId);
+    useUiStore.setState({ selectedZoneId: nextZoneId });
     setEditing(null);
   };
 
@@ -176,6 +178,20 @@ export function DnsScreen() {
       <div className="flex min-w-0 flex-1 flex-col">
         {selectedZone ? (
           <>
+            {selectedZone.nameServers.length > 0 ? (
+              <div className="flex items-center gap-2 border-b border-line px-4 py-2 text-[11px] text-muted">
+                <span className="shrink-0">Nameservers</span>
+                <span className="min-w-0 truncate font-mono text-ink">{selectedZone.nameServers.join(" · ")}</span>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="ml-auto shrink-0"
+                  onClick={() => void copyText(selectedZone.nameServers.join("\n"))}
+                >
+                  Copy
+                </Button>
+              </div>
+            ) : null}
             <ScreenToolbar>
               <Input
                 placeholder="Search name or content"

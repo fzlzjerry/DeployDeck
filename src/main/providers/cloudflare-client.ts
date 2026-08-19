@@ -245,6 +245,13 @@ export async function getPagesLogs(
   });
 }
 
+export async function createPagesDeployment(accountId: string, projectName: string): Promise<void> {
+  await wrapProvider("cloudflare", async () => {
+    const cf = await client();
+    await cf.pages.projects.deployments.create(projectName, { account_id: accountId });
+  });
+}
+
 export async function retryPagesDeployment(accountId: string, projectName: string, deploymentId: string): Promise<void> {
   await wrapProvider("cloudflare", async () => {
     const cf = await client();
@@ -498,7 +505,7 @@ export async function listWorkerRoutes(accountId: string, scriptName?: string) {
     const rows: Array<{ id?: string; pattern?: string; script?: string; zone_name?: string }> = [];
     for (const zone of zones) {
       const zoneRoutes = await collect(cf.workers.routes.list({ zone_id: zone.id })).catch(() => []);
-      rows.push(...zoneRoutes.map((route) => ({ ...route, zone_name: zone.name })));
+      rows.push(...zoneRoutes.map((route) => ({ ...route, zone_name: zone.name, zone_id: zone.id })));
     }
     return rows
       .filter((route) => !scriptName || (route as { script?: string }).script === scriptName)
@@ -506,6 +513,7 @@ export async function listWorkerRoutes(accountId: string, scriptName?: string) {
         id: String((route as { id?: string }).id ?? ""),
         pattern: String((route as { pattern?: string }).pattern ?? ""),
         script: String((route as { script?: string }).script ?? ""),
+        zoneId: (route as { zone_id?: string }).zone_id,
         zoneName: (route as { zone_name?: string }).zone_name,
       }));
   });
@@ -529,7 +537,26 @@ export async function listWorkerDomains(accountId: string, scriptName?: string):
         name: String((domain as { hostname?: string }).hostname ?? ""),
         status: String((domain as { zone_name?: string }).zone_name ?? "attached"),
         verified: true,
+        verificationRecords: [],
       }));
+  });
+}
+
+export async function createWorkerRoute(zoneId: string, pattern: string, scriptName: string): Promise<void> {
+  await wrapProvider("cloudflare", async () => {
+    const cf = await client();
+    await cf.workers.routes.create({
+      zone_id: zoneId,
+      pattern,
+      script: scriptName,
+    } as never);
+  });
+}
+
+export async function deleteWorkerRoute(zoneId: string, routeId: string): Promise<void> {
+  await wrapProvider("cloudflare", async () => {
+    const cf = await client();
+    await cf.workers.routes.delete(routeId, { zone_id: zoneId });
   });
 }
 

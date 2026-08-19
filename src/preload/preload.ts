@@ -24,6 +24,7 @@ const api: DeployDeckApi = {
     cancelDeployment: (id) => invoke("vercel:cancelDeployment", id),
     redeploy: (id, target) => invoke("vercel:redeploy", id, target),
     promote: (id, projectId) => invoke("vercel:promote", id, projectId),
+    deployLatest: (projectId, target) => invoke("vercel:deployLatest", projectId, target),
     deleteDeployment: (id) => invoke("vercel:deleteDeployment", id),
     listDomains: (projectId) => invoke("vercel:domains", projectId),
     addDomain: (projectId, name) => invoke("vercel:addDomain", projectId, name),
@@ -43,6 +44,8 @@ const api: DeployDeckApi = {
       invoke("cloudflare:pagesDeployment", accountId, projectName, deploymentId),
     getPagesLogs: (accountId, projectName, deploymentId) =>
       invoke("cloudflare:pagesLogs", accountId, projectName, deploymentId),
+    createPagesDeployment: (accountId, projectName) =>
+      invoke("cloudflare:createPagesDeployment", accountId, projectName),
     retryPagesDeployment: (accountId, projectName, deploymentId) =>
       invoke("cloudflare:retryPagesDeployment", accountId, projectName, deploymentId),
     rollbackPagesDeployment: (accountId, projectName, deploymentId) =>
@@ -69,6 +72,9 @@ const api: DeployDeckApi = {
     restoreWorkerDeployment: (accountId, scriptName, deploymentId) =>
       invoke("cloudflare:restoreWorkerDeployment", accountId, scriptName, deploymentId),
     listWorkerRoutes: (accountId, scriptName) => invoke("cloudflare:workerRoutes", accountId, scriptName),
+    createWorkerRoute: (zoneId, pattern, scriptName) =>
+      invoke("cloudflare:createWorkerRoute", zoneId, pattern, scriptName),
+    deleteWorkerRoute: (zoneId, routeId) => invoke("cloudflare:deleteWorkerRoute", zoneId, routeId),
     listWorkerDomains: (accountId, scriptName) => invoke("cloudflare:workerDomains", accountId, scriptName),
     attachWorkerDomain: (accountId, scriptName, hostname, zoneId) =>
       invoke("cloudflare:attachWorkerDomain", accountId, scriptName, hostname, zoneId),

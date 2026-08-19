@@ -45,6 +45,15 @@ export function httpsUrl(hostOrUrl: string): string {
   return `https://${hostOrUrl}`;
 }
 
+export function gitCommitUrl(repositoryUrl?: string, sha?: string): string | undefined {
+  if (!repositoryUrl || !sha) return undefined;
+  const base = repositoryUrl.replace(/\/+$/, "").replace(/\.git$/, "");
+  if (base.includes("github.com") || base.includes("gitlab.com") || base.includes("bitbucket.org")) {
+    return `${base}/commit/${sha}`;
+  }
+  return undefined;
+}
+
 export function gitRepositoryUrl(repo?: string | { type?: string; repo?: string; owner?: string; name?: string; slug?: string }): string | undefined {
   if (!repo) return undefined;
   if (typeof repo === "string") {

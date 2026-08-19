@@ -18,8 +18,9 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/primitives";
+import { gitCommitUrl } from "@shared/provider-types";
 import { useConnection, usePrefs } from "@/hooks/use-connection";
-import { useUnifiedDeployments } from "@/hooks/use-data";
+import { useProjects, useUnifiedDeployments } from "@/hooks/use-data";
 import { copyText, errorMessage, formatDuration, formatWhen, shortSha } from "@/lib/format";
 import { useUiStore } from "@/stores/ui-store";
 import { toast } from "sonner";
@@ -32,12 +33,14 @@ export function DeploymentsScreen() {
   const closeInspector = useUiStore((state) => state.closeInspector);
   const searchNonce = useUiStore((state) => state.searchNonce);
   const connection = useConnection();
+  const projects = useProjects();
   const query = useUnifiedDeployments(filters);
   const items = query.data?.pages.flatMap((page) => page.items) ?? [];
   const searchRef = useRef<HTMLInputElement>(null);
   const [search, setSearch] = useState(filters.query ?? "");
   const activeFilterCount = [
     filters.provider && filters.provider !== "all",
+    Boolean(filters.projectId),
     filters.state && filters.state !== "all",
     filters.environment && filters.environment !== "all",
     Boolean(filters.branch),
@@ -60,6 +63,7 @@ export function DeploymentsScreen() {
     setFilters({
       provider: "all",
       accountId: "all",
+      projectId: undefined,
       state: "all",
       environment: "all",
       branch: undefined,
@@ -88,7 +92,7 @@ export function DeploymentsScreen() {
           </div>
           <SelectControl
             value={filters.provider ?? "all"}
-            onValueChange={(provider) => setFilters({ provider: provider as never })}
+            onValueChange={(provider) => setFilters({ provider: provider as never, projectId: undefined })}
             ariaLabel="Filter by provider"
             className="w-36"
             options={[
@@ -96,6 +100,24 @@ export function DeploymentsScreen() {
               { value: "vercel", label: "Vercel" },
               { value: "cloudflare-pages", label: "Pages" },
               { value: "cloudflare-workers", label: "Workers" },
+            ]}
+          />
+          <SelectControl
+            value={filters.projectId ?? "all"}
+            onValueChange={(projectId) => setFilters({ projectId: projectId === "all" ? undefined : projectId })}
+            ariaLabel="Filter by project"
+            className="w-44"
+            placeholder="All projects"
+            options={[
+              { value: "all", label: "All projects" },
+              ...[
+                ...(filters.provider === "all" || filters.provider === "vercel" ? (projects.data?.vercel ?? []) : []),
+                ...(filters.provider === "all" || filters.provider === "cloudflare-pages" ? (projects.data?.pages ?? []) : []),
+                ...(filters.provider === "all" || filters.provider === "cloudflare-workers" ? (projects.data?.workers ?? []) : []),
+              ].map((item) => ({
+                value: "id" in item && "provider" in item ? item.id : item.name,
+                label: item.name,
+              })),
             ]}
           />
           <SelectControl
@@ -386,10 +408,13 @@ export function DeploymentDetail({ deployment }: { deployment: UnifiedDeployment
       }
       return deployment;
     },
+    refetchInterval: (query) => (currentIsActive(query.state.data?.state ?? deployment.state) ? 4000 : false),
   });
+  const live = currentIsActive((detail.data ?? deployment).state);
   const buildLogs = useQuery({
     queryKey: ["build-logs", deployment.provider, deployment.id],
     enabled: tab === "build",
+    refetchInterval: tab === "build" && live ? 4000 : false,
     queryFn: async () => {
       if (deployment.provider === "vercel") return window.deployDeck.vercel.getBuildLogs(deployment.id);
       if (deployment.provider === "cloudflare-pages") {
@@ -411,12 +436,17 @@ export function DeploymentDetail({ deployment }: { deployment: UnifiedDeployment
     let sessionId: string | undefined;
     let active = true;
     void window.deployDeck.cloudflare.startWorkerTail(deployment.accountId, deployment.projectName).then((session) => {
+      if (!active) {
+        void window.deployDeck.cloudflare.stopWorkerTail(session.sessionId);
+        return;
+      }
       sessionId = session.sessionId;
     });
     const off = window.deployDeck.on<{ sessionId: string; entry: NonNullable<typeof tailEntries>[number] }>(
       "host:worker-tail",
       (payload) => {
         if (!active || paused) return;
+        if (sessionId && payload.sessionId !== sessionId) return;
         setTailEntries((current) => [...(current ?? []), payload.entry]);
       },
     );
@@ -463,7 +493,27 @@ export function DeploymentDetail({ deployment }: { deployment: UnifiedDeployment
           <DetailRow label="Status" value={<StatusBadge state={current.state} />} />
           <DetailRow label="Environment" value={current.environment} />
           <DetailRow label="Branch" value={current.branch ?? "—"} />
-          <DetailRow label="Commit" value={shortSha(current.commitSha, prefs.data?.fullCommitSha)} mono />
+          <DetailRow
+            label="Commit"
+            value={
+              current.commitSha && "repository" in current && gitCommitUrl((current as { repository?: string }).repository, current.commitSha)
+                ? (
+                    <button
+                      type="button"
+                      className="text-left font-mono text-[11px] text-ember-ink"
+                      onClick={() =>
+                        void window.deployDeck.shell.openHttps(
+                          gitCommitUrl((current as { repository?: string }).repository, current.commitSha)!,
+                        )
+                      }
+                    >
+                      {shortSha(current.commitSha, prefs.data?.fullCommitSha)}
+                    </button>
+                  )
+                : shortSha(current.commitSha, prefs.data?.fullCommitSha)
+            }
+            mono={!("repository" in current)}
+          />
           <DetailRow label="Message" value={current.commitMessage ?? "—"} />
           <DetailRow label="Author" value={current.author ?? "—"} />
           <DetailRow label="Created" value={formatWhen(current.createdAt, "absolute")} />
@@ -481,26 +531,59 @@ export function DeploymentDetail({ deployment }: { deployment: UnifiedDeployment
               Copy ID
             </Button>
             {current.provider === "vercel" ? (
-              <Button
-                size="sm"
-                variant="secondary"
-                onClick={() => void runAction("Redeployment started", () => window.deployDeck.vercel.redeploy(current.id))}
-              >
-                Redeploy
-              </Button>
+              <>
+                {(current.state === "queued" || current.state === "building") ? (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => void runAction("Canceled", () => window.deployDeck.vercel.cancelDeployment(current.id))}
+                  >
+                    Cancel
+                  </Button>
+                ) : null}
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => void runAction("Redeployment started", () => window.deployDeck.vercel.redeploy(current.id))}
+                >
+                  Redeploy
+                </Button>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() =>
+                    void runAction("Promoted", () => window.deployDeck.vercel.promote(current.id, current.projectId))
+                  }
+                >
+                  Promote
+                </Button>
+              </>
             ) : null}
             {current.provider === "cloudflare-pages" ? (
-              <Button
-                size="sm"
-                variant="secondary"
-                onClick={() =>
-                  void runAction("Retry started", () =>
-                    window.deployDeck.cloudflare.retryPagesDeployment(current.accountId, current.projectName, current.id),
-                  )
-                }
-              >
-                Retry
-              </Button>
+              <>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() =>
+                    void runAction("Retry started", () =>
+                      window.deployDeck.cloudflare.retryPagesDeployment(current.accountId, current.projectName, current.id),
+                    )
+                  }
+                >
+                  Retry
+                </Button>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() =>
+                    void runAction("Rolled back", () =>
+                      window.deployDeck.cloudflare.rollbackPagesDeployment(current.accountId, current.projectName, current.id),
+                    )
+                  }
+                >
+                  Roll back
+                </Button>
+              </>
             ) : null}
           </div>
         </div>
@@ -509,6 +592,8 @@ export function DeploymentDetail({ deployment }: { deployment: UnifiedDeployment
         <LogViewer
           entries={buildLogs.data ?? []}
           loading={buildLogs.isLoading}
+          live={live}
+          fileName={`${current.projectName}-${current.id}.log`}
           error={buildLogs.isError ? errorMessage(buildLogs.error) : undefined}
           onRetry={() => void buildLogs.refetch()}
         />
@@ -524,7 +609,14 @@ export function DeploymentDetail({ deployment }: { deployment: UnifiedDeployment
           />
         ) : null}
         {deployment.provider === "cloudflare-workers" ? (
-          <LogViewer entries={tailEntries ?? []} live paused={paused} onPause={setPaused} onClear={() => setTailEntries([])} />
+          <LogViewer
+          entries={tailEntries ?? []}
+          live
+          paused={paused}
+          fileName={`${deployment.projectName}-tail.log`}
+          onPause={setPaused}
+          onClear={() => setTailEntries([])}
+        />
         ) : null}
         {deployment.provider === "cloudflare-pages" ? (
           <EmptyState title="No runtime tail" body="Pages deployments expose build logs. Use the Build tab." />
@@ -549,5 +641,9 @@ export function DeploymentDetail({ deployment }: { deployment: UnifiedDeployment
       </TabsContent>
     </Tabs>
   );
+}
+
+function currentIsActive(state: UnifiedDeployment["state"]): boolean {
+  return state === "queued" || state === "building";
 }
 

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import { pagesVerificationRecords, vercelVerificationRecords } from "./domain-verification";
 import { inferLogLevel, pagesEnvironment, pagesState, vercelEnvironment, vercelState } from "./status";
 
 describe("vercelState", () => {
@@ -29,6 +30,24 @@ describe("environments", () => {
     assert.equal(vercelEnvironment("preview"), "preview");
     assert.equal(pagesEnvironment("production"), "production");
     assert.equal(pagesEnvironment("preview"), "preview");
+  });
+});
+
+describe("domain verification", () => {
+  it("reads Vercel TXT records", () => {
+    const records = vercelVerificationRecords([
+      { type: "TXT", domain: "_vercel.example.com", value: "vc-domain-verify=abc" },
+    ]);
+    assert.equal(records.length, 1);
+    assert.equal(records[0]?.type, "TXT");
+    assert.equal(records[0]?.name, "_vercel.example.com");
+    assert.equal(records[0]?.value, "vc-domain-verify=abc");
+  });
+
+  it("falls back to a Pages CNAME while the domain is pending", () => {
+    const records = pagesVerificationRecords({ name: "docs.example.com", status: "pending" }, "docs");
+    assert.equal(records[0]?.type, "CNAME");
+    assert.equal(records[0]?.value, "docs.pages.dev");
   });
 });
 

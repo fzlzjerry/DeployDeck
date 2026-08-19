@@ -6,19 +6,26 @@ import { Badge, Button, TableSkeleton } from "@/components/ui/primitives";
 import { usePrefs } from "@/hooks/use-connection";
 import { useActivity, useUnifiedDeployments } from "@/hooks/use-data";
 import { errorMessage, formatWhen } from "@/lib/format";
+import { useUiStore } from "@/stores/ui-store";
 
 export function ActivityScreen() {
   const activity = useActivity();
   const deployments = useUnifiedDeployments({ provider: "all" });
   const prefs = usePrefs();
   const client = useQueryClient();
+  const openDeployment = useUiStore((state) => state.openDeployment);
+  const setScreen = useUiStore((state) => state.setScreen);
+  const setFilters = useUiStore((state) => state.setFilters);
+  const deploymentItems = deployments.data?.pages.flatMap((page) => page.items) ?? [];
   const local = activity.data ?? [];
-  const derived = (deployments.data?.pages.flatMap((page) => page.items) ?? []).slice(0, 40).map((item) => ({
+  const derived = deploymentItems.slice(0, 40).map((item) => ({
     id: `dep-${item.id}`,
     at: item.createdAt,
     title: `${item.projectName} ${item.state}`,
     detail: item.commitMessage,
     kind: "deployment",
+    projectName: item.projectName,
+    targetId: item.id,
   }));
   const rows = [
     ...local.map((item) => ({ ...item, source: "Local" as const })),
@@ -73,6 +80,21 @@ export function ActivityScreen() {
                   key={item.id}
                   className="grid grid-cols-[18px_minmax(0,1fr)_auto] gap-3 border-b border-line/70 py-3 last:border-b-0"
                 >
+                  <button
+                    type="button"
+                    className="contents"
+                    onClick={() => {
+                      const match = deploymentItems.find((deployment) => `dep-${deployment.id}` === item.id || deployment.id === item.targetId);
+                      if (match) {
+                        openDeployment(match);
+                        return;
+                      }
+                      if (item.projectName) {
+                        setFilters({ query: item.projectName, projectId: undefined, state: "all" });
+                        setScreen("deployments");
+                      }
+                    }}
+                  >
                   <span className="mt-1.5 size-2 rounded-full bg-surface-3" aria-hidden />
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
@@ -86,6 +108,7 @@ export function ActivityScreen() {
                   <time className="shrink-0 pt-0.5 text-[11px] text-muted tabular" dateTime={item.at}>
                     {formatWhen(item.at, prefs.data?.timeFormat ?? "relative")}
                   </time>
+                  </button>
                 </li>
               ))}
             </ol>

@@ -5,10 +5,12 @@ import { EmptyState, ScreenError } from "@/components/common/empty-state";
 import { StatusBadge } from "@/components/common/status-badge";
 import { Button, Skeleton } from "@/components/ui/primitives";
 import { useConnection, usePrefs } from "@/hooks/use-connection";
+import { parseWatchKey } from "@shared/watch";
 import { useActivity, useProjects, useUnifiedDeployments } from "@/hooks/use-data";
+import { useWatchlist } from "@/hooks/use-watchlist";
 import { errorMessage, formatWhen, providerLabel } from "@/lib/format";
 import { cn } from "@/lib/cn";
-import { useUiStore } from "@/stores/ui-store";
+import { projectToFocus, useUiStore } from "@/stores/ui-store";
 
 const OVERVIEW_FILTERS: DeploymentFilters = {
   provider: "all",
@@ -26,6 +28,8 @@ export function OverviewScreen() {
   const activity = useActivity();
   const prefs = usePrefs();
   const openDeployment = useUiStore((state) => state.openDeployment);
+  const openProject = useUiStore((state) => state.openProject);
+  const watchlist = useWatchlist();
   const items = deployments.data?.pages.flatMap((page) => page.items) ?? [];
   const activeItems = items.filter((item) => item.state === "queued" || item.state === "building");
   const failedItems = items.filter((item) => item.state === "failed");
@@ -34,9 +38,21 @@ export function OverviewScreen() {
     .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
     .slice(0, 8);
   const recentReady = readyItems.slice(0, 6);
-  const projectItems = [...(projects.data?.vercel ?? []), ...(projects.data?.pages ?? [])]
+  const allProjects = [...(projects.data?.vercel ?? []), ...(projects.data?.pages ?? [])];
+  const projectItems = [...allProjects]
     .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))
     .slice(0, 6);
+  const watchedItems = watchlist.keys
+    .map((key) => {
+      const parsed = parseWatchKey(key);
+      if (!parsed) return undefined;
+      if (parsed.provider === "cloudflare-workers") {
+        return (projects.data?.workers ?? []).find((item) => item.name === parsed.id && item.accountId === parsed.accountId);
+      }
+      return allProjects.find((item) => item.id === parsed.id || item.name === parsed.id);
+    })
+    .filter(Boolean)
+    .slice(0, 8);
   const providerSummary = [
     connection.data?.vercel.connected && "Vercel",
     connection.data?.cloudflare.connected && "Cloudflare",
@@ -121,6 +137,41 @@ export function OverviewScreen() {
             )}
           </Section>
 
+          {watchedItems.length > 0 ? (
+            <Section title="Watching" count={watchedItems.length} action={{ label: "View projects", onClick: () => setScreen("projects") }}>
+              {watchedItems.map((item) =>
+                item && "provider" in item ? (
+                  <button
+                    key={`${item.provider}:${item.id}`}
+                    type="button"
+                    className="flex min-h-9 w-full items-center justify-between gap-4 border-b border-line/70 py-2 text-left last:border-0"
+                    onClick={() => openProject(projectToFocus(item))}
+                  >
+                    <span className="min-w-0 truncate text-[12px] font-medium">{item.name}</span>
+                    <span className="shrink-0 text-[11px] text-muted">{providerLabel(item.provider)}</span>
+                  </button>
+                ) : item ? (
+                  <button
+                    key={`worker:${item.accountId}:${item.name}`}
+                    type="button"
+                    className="flex min-h-9 w-full items-center justify-between gap-4 border-b border-line/70 py-2 text-left last:border-0"
+                    onClick={() =>
+                      openProject({
+                        kind: "worker",
+                        accountId: item.accountId,
+                        accountName: item.accountName,
+                        name: item.name,
+                      })
+                    }
+                  >
+                    <span className="min-w-0 truncate text-[12px] font-medium">{item.name}</span>
+                    <span className="shrink-0 text-[11px] text-muted">Workers</span>
+                  </button>
+                ) : null,
+              )}
+            </Section>
+          ) : null}
+
           <Section title="Local activity" action={{ label: "View activity", onClick: () => setScreen("activity") }}>
             {activity.isLoading ? (
               <LoadingRows count={3} />
@@ -173,9 +224,11 @@ export function OverviewScreen() {
               <EmptyRow>Projects will appear after the first refresh.</EmptyRow>
             ) : (
               projectItems.map((project) => (
-                <div
+                <button
+                  type="button"
                   key={`${project.provider}:${project.id}`}
-                  className="flex min-h-9 items-center justify-between gap-4 border-b border-line/70 py-2 last:border-0"
+                  className="flex min-h-9 w-full items-center justify-between gap-4 border-b border-line/70 py-2 text-left last:border-0"
+                  onClick={() => openProject(projectToFocus(project))}
                 >
                   <div className="min-w-0">
                     <p className="truncate text-[12px] font-medium">{project.name}</p>
@@ -184,7 +237,7 @@ export function OverviewScreen() {
                   <time className="shrink-0 text-[11px] text-muted tabular" dateTime={project.updatedAt}>
                     {formatWhen(project.updatedAt, timeFormat)}
                   </time>
-                </div>
+                </button>
               ))
             )}
           </Section>

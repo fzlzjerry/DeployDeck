@@ -21,6 +21,8 @@ export function EnvironmentsScreen() {
   const [env, setEnv] = useState("production");
   const [key, setKey] = useState("");
   const [value, setValue] = useState("");
+  const [branch, setBranch] = useState("");
+  const [editingId, setEditingId] = useState<string>();
   const [secret, setSecret] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -103,12 +105,15 @@ export function EnvironmentsScreen() {
     setSaving(true);
     try {
       if (provider === "vercel") {
-        await window.deployDeck.vercel.createEnvVar(targetId, {
+        const input = {
           key: variableName,
           value,
           targets: [env],
-          type: secret ? "sensitive" : "encrypted",
-        });
+          type: secret ? "sensitive" as const : "encrypted" as const,
+          branch: branch.trim() || undefined,
+        };
+        if (editingId) await window.deployDeck.vercel.updateEnvVar(targetId, editingId, input);
+        else await window.deployDeck.vercel.createEnvVar(targetId, input);
       } else if (provider === "cloudflare-pages") {
         const [accountId, name] = targetId.split("::");
         await window.deployDeck.cloudflare.upsertPagesEnv({
@@ -124,9 +129,11 @@ export function EnvironmentsScreen() {
         if (secret) await window.deployDeck.cloudflare.putWorkerSecret(accountId, name, variableName, value);
         else await window.deployDeck.cloudflare.upsertWorkerVar(accountId, name, variableName, value);
       }
-      toast.success("Variable saved");
+      toast.success(editingId ? "Variable updated" : "Variable saved");
       setKey("");
       setValue("");
+      setBranch("");
+      setEditingId(undefined);
       await client.invalidateQueries({ queryKey: ["env-manager"] });
     } catch (error) {
       toast.error(errorMessage(error));
@@ -189,6 +196,15 @@ export function EnvironmentsScreen() {
             if (event.key === "Enter") void saveVariable();
           }}
         />
+        {provider === "vercel" ? (
+          <Input
+            aria-label="Git branch"
+            placeholder="Branch"
+            className="max-w-36 font-mono"
+            value={branch}
+            onChange={(event) => setBranch(event.target.value)}
+          />
+        ) : null}
         <Label htmlFor="environment-secret" className="flex cursor-default items-center gap-2 text-[12px] text-ink">
           <CheckboxControl
             id="environment-secret"
@@ -204,8 +220,36 @@ export function EnvironmentsScreen() {
           disabled={!targetId || !key.trim()}
           onClick={() => void saveVariable()}
         >
-          Save variable
+          {editingId ? "Update variable" : "Save variable"}
         </Button>
+        {editingId ? (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => {
+              setEditingId(undefined);
+              setKey("");
+              setValue("");
+              setBranch("");
+            }}
+          >
+            Cancel
+          </Button>
+        ) : null}
+        {items.length > 0 ? (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() =>
+              void window.deployDeck.files.saveText(
+                `${targetId || "env"}.env`,
+                items.map((item) => `${item.key}=${item.value ?? ""}`).join("\n"),
+              )
+            }
+          >
+            Export
+          </Button>
+        ) : null}
       </ScreenToolbar>
 
       <div className="min-h-0 flex-1 overflow-auto">
@@ -244,6 +288,14 @@ export function EnvironmentsScreen() {
                 <EnvTableRow
                   key={item.id}
                   item={item}
+                  onEdit={() => {
+                    setEditingId(item.id);
+                    setKey(item.key);
+                    setValue(item.value ?? "");
+                    setBranch(item.branch ?? "");
+                    setEnv(item.targets[0] ?? "production");
+                    setSecret(item.type === "secret" || item.type === "sensitive");
+                  }}
                   onReveal={
                     provider === "vercel" && targetId
                       ? () => window.deployDeck.vercel.revealEnvVar(targetId, item.id)
@@ -295,10 +347,12 @@ export function EnvironmentsScreen() {
 function EnvTableRow({
   item,
   onReveal,
+  onEdit,
   onDelete,
 }: {
-  item: { key: string; type: string; targets: string[]; updatedAt?: string; value?: string };
+  item: { key: string; type: string; targets: string[]; branch?: string; updatedAt?: string; value?: string };
   onReveal?: () => Promise<string>;
+  onEdit?: () => void;
   onDelete: () => void;
 }) {
   const [revealedValue, setRevealedValue] = useState<string>();
@@ -325,11 +379,16 @@ function EnvTableRow({
     <tr>
       <td className="font-mono font-medium">{item.key}</td>
       <td>{item.type}</td>
-      <td>{item.targets.join(", ") || "—"}</td>
+      <td>{[item.targets.join(", ") || "—", item.branch].filter(Boolean).join(" · ")}</td>
       <td className="tabular text-muted">{formatWhen(item.updatedAt, "absolute")}</td>
       <td className="max-w-80 truncate font-mono">{revealedValue ?? item.value ?? "••••••"}</td>
       <td className="w-0">
         <div className="flex justify-end gap-1">
+          {onEdit ? (
+            <Button size="sm" variant="ghost" aria-label={`Edit ${item.key}`} onClick={onEdit}>
+              Edit
+            </Button>
+          ) : null}
           {onReveal ? (
             <Button
               size="sm"

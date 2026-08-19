@@ -49,6 +49,7 @@ export function useUnifiedDeployments(filters: DeploymentFilters) {
           ? window.deployDeck.cloudflare.listPagesDeployments({
               ...filters,
               accountId: filters.accountId === "all" ? undefined : filters.accountId,
+              projectName: filters.projectId,
               cursor: pageParam.pages,
               limit: 20,
             })
@@ -56,7 +57,8 @@ export function useUnifiedDeployments(filters: DeploymentFilters) {
         workersOn && !pageParam.vercel && !pageParam.pages
           ? window.deployDeck.cloudflare.listWorkers(filters.accountId === "all" ? undefined : filters.accountId).then(async (scripts) => {
               const deployments: UnifiedDeployment[] = [];
-              for (const script of scripts.slice(0, 30)) {
+              const scoped = filters.projectId ? scripts.filter((script) => script.name === filters.projectId) : scripts;
+              for (const script of scoped.slice(0, 30)) {
                 const rows = await window.deployDeck.cloudflare.listWorkerDeployments(script.accountId, script.name);
                 deployments.push(
                   ...rows.map((row) => ({

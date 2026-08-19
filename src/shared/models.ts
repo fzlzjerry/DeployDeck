@@ -83,6 +83,13 @@ export interface DeploymentLogEntry {
   raw?: unknown;
 }
 
+export interface DomainVerificationRecord {
+  type: string;
+  name: string;
+  value: string;
+  reason?: string;
+}
+
 export interface UnifiedDomain {
   id: string;
   provider: Provider;
@@ -95,6 +102,7 @@ export interface UnifiedDomain {
   verified?: boolean;
   certificateStatus?: string;
   verificationStatus?: string;
+  verificationRecords: DomainVerificationRecord[];
   apex?: boolean;
   redirectTo?: string;
   createdAt?: string;
@@ -223,6 +231,7 @@ export interface LocalActivityEntry {
   detail?: string;
   projectName?: string;
   targetId?: string;
+  accountId?: string;
 }
 
 export interface ConnectionStatus {
@@ -262,6 +271,7 @@ export interface AppPreferences {
   vercelTeamId: string | null;
   cloudflareAccountId: string | null;
   setupComplete: boolean;
+  watchedProjectKeys: string[];
 }
 
 export interface WindowBounds {
@@ -342,4 +352,5 @@ export const DEFAULT_PREFERENCES: AppPreferences = {
   vercelTeamId: null,
   cloudflareAccountId: null,
   setupComplete: false,
+  watchedProjectKeys: [],
 };

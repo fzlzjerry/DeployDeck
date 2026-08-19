@@ -1,7 +1,11 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, Star } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import type { UnifiedProject, WorkerScript } from "@shared/models";
+import type { EnvironmentVariable, Provider, UnifiedProject, WorkerScript } from "@shared/models";
+import { watchKey } from "@shared/watch";
+import { VerificationRecords } from "@/features/domains/verification-records";
+import { WorkerDomainsPanel, WorkerRoutesPanel } from "@/features/projects/worker-network";
+import { useWatchlist } from "@/hooks/use-watchlist";
 import { EmptyState, ScreenError } from "@/components/common/empty-state";
 import { ProviderMark, StatusBadge } from "@/components/common/status-badge";
 import { DetailRow, InspectorHeader, InspectorPanel, ScreenToolbar } from "@/components/ui/layout";
@@ -19,19 +23,10 @@ import { useConnection, usePrefs } from "@/hooks/use-connection";
 import { useProjects } from "@/hooks/use-data";
 import { cn } from "@/lib/cn";
 import { errorMessage, formatWhen, providerLabel } from "@/lib/format";
-import { useUiStore } from "@/stores/ui-store";
+import { projectToFocus, useUiStore, type ProjectFocus } from "@/stores/ui-store";
 import { toast } from "sonner";
 
 type ProviderFilter = "all" | "vercel" | "cloudflare-pages" | "cloudflare-workers";
-
-interface WorkerSelection {
-  kind: "worker";
-  accountId: string;
-  name: string;
-  accountName: string;
-}
-
-type ProjectSelection = UnifiedProject | WorkerSelection;
 
 type ProjectTableEntry =
   | { kind: "project"; key: string; item: UnifiedProject }
@@ -50,7 +45,9 @@ export function ProjectsScreen() {
   const prefs = usePrefs();
   const [provider, setProvider] = useState<ProviderFilter>("all");
   const [query, setQuery] = useState("");
-  const [selected, setSelected] = useState<ProjectSelection>();
+  const selected = useUiStore((state) => state.selectedProject);
+  const openProject = useUiStore((state) => state.openProject);
+  const watchlist = useWatchlist();
   const normalizedQuery = query.trim().toLowerCase();
 
   const projectEntries: ProjectTableEntry[] = [
@@ -123,14 +120,18 @@ export function ProjectsScreen() {
           <ProjectsTable
             entries={entries}
             selected={selected}
-            onSelect={setSelected}
+            onSelect={openProject}
+            watchedKeys={watchlist.keys}
+            onToggleWatch={(provider, id, accountId) => void watchlist.toggle(provider, id, accountId)}
             showProviderIcons={prefs.data?.showProviderIcons}
             timeFormat={prefs.data?.timeFormat ?? "relative"}
           />
         )}
       </div>
 
-      {selected ? <ProjectInspector selected={selected} onClose={() => setSelected(undefined)} /> : null}
+      {selected ? (
+        <ProjectInspector selected={selected} onClose={() => useUiStore.setState({ selectedProject: undefined })} />
+      ) : null}
     </div>
   );
 }
@@ -139,12 +140,16 @@ function ProjectsTable({
   entries,
   selected,
   onSelect,
+  watchedKeys,
+  onToggleWatch,
   showProviderIcons,
   timeFormat,
 }: {
   entries: ProjectTableEntry[];
-  selected?: ProjectSelection;
-  onSelect: (selection: ProjectSelection) => void;
+  selected?: ProjectFocus;
+  onSelect: (selection: ProjectFocus) => void;
+  watchedKeys: string[];
+  onToggleWatch: (provider: Provider, id: string, accountId?: string) => void;
   showProviderIcons?: boolean;
   timeFormat: "relative" | "absolute";
 }) {
@@ -164,7 +169,7 @@ function ProjectsTable({
   };
 
   const selectEntry = (entry: ProjectTableEntry) => {
-    if (entry.kind === "project") onSelect(entry.item);
+    if (entry.kind === "project") onSelect(projectToFocus(entry.item));
     else {
       onSelect({
         kind: "worker",
@@ -180,6 +185,7 @@ function ProjectsTable({
       <table className="data-table min-w-[820px]" aria-label="Projects and workers">
         <thead>
           <tr>
+            <th>Watch</th>
             <th>Provider</th>
             <th>Name</th>
             <th>Account</th>
@@ -229,6 +235,23 @@ function ProjectsTable({
                   }
                 }}
               >
+                <td className="w-10">
+                  <WatchButton
+                    watched={watchedKeys.includes(
+                      entry.kind === "project"
+                        ? watchKey(entry.item.provider, entry.item.id, entry.item.accountId)
+                        : watchKey("cloudflare-workers", entry.item.name, entry.item.accountId),
+                    )}
+                    onClick={() =>
+                      onToggleWatch(
+                        entry.kind === "project" ? entry.item.provider : "cloudflare-workers",
+                        entry.kind === "project" ? entry.item.id : entry.item.name,
+                        entry.item.accountId,
+                      )
+                    }
+                    label={item.name}
+                  />
+                </td>
                 <td>
                   <ProviderMark
                     provider={entry.kind === "project" ? entry.item.provider : "cloudflare-workers"}
@@ -263,21 +286,57 @@ function ProjectsTable({
   );
 }
 
-function selectionKey(selection?: ProjectSelection): string | undefined {
+function selectionKey(selection?: ProjectFocus): string | undefined {
   if (!selection) return undefined;
-  if ("kind" in selection) return `worker:${selection.accountId}:${selection.name}`;
+  if (selection.kind === "worker") return `worker:${selection.accountId}:${selection.name}`;
   return `${selection.provider}:${selection.id}`;
 }
 
-function ProjectInspector({ selected, onClose }: { selected: ProjectSelection; onClose: () => void }) {
-  const worker = "kind" in selected;
+function WatchButton({
+  watched,
+  onClick,
+  label,
+}: {
+  watched: boolean;
+  onClick: () => void;
+  label: string;
+}) {
+  return (
+    <Button
+      size="icon"
+      variant="ghost"
+      className="size-7"
+      aria-pressed={watched}
+      aria-label={watched ? `Stop watching ${label}` : `Watch ${label}`}
+      onClick={(event) => {
+        event.stopPropagation();
+        onClick();
+      }}
+    >
+      <Star className={watched ? "fill-ember text-ember-ink" : "text-muted"} aria-hidden />
+    </Button>
+  );
+}
+
+function ProjectInspector({ selected, onClose }: { selected: ProjectFocus; onClose: () => void }) {
+  const worker = selected.kind === "worker";
   const title = selected.name;
   const subtitle = worker
     ? `${selected.accountName} · Cloudflare Workers`
     : `${selected.accountName} · ${providerLabel(selected.provider)}`;
+  const project = useQuery({
+    queryKey: ["project-detail", selected.kind, selected.kind === "project" ? selected.provider : "worker", selected.kind === "project" ? selected.id : selected.name, selected.accountId],
+    enabled: selected.kind === "project",
+    queryFn: async () => {
+      if (selected.kind !== "project") throw new Error("Not a project.");
+      return selected.provider === "vercel"
+        ? window.deployDeck.vercel.getProject(selected.id)
+        : window.deployDeck.cloudflare.getPagesProject(selected.accountId, selected.name);
+    },
+  });
   const dashboardUrl = worker
     ? `https://dash.cloudflare.com/${selected.accountId}/workers/services/view/${selected.name}`
-    : selected.dashboardUrl;
+    : project.data?.dashboardUrl;
 
   return (
     <InspectorPanel size="md" className="deployment-inspector" aria-label={`${title} inspector`}>
@@ -287,22 +346,48 @@ function ProjectInspector({ selected, onClose }: { selected: ProjectSelection; o
         closeLabel={`Close ${title} inspector`}
         onClose={onClose}
         actions={
-          <Button size="sm" variant="secondary" onClick={() => void window.deployDeck.shell.openHttps(dashboardUrl)}>
-            Dashboard
-            <ExternalLink aria-hidden />
-          </Button>
+          dashboardUrl ? (
+            <Button size="sm" variant="secondary" onClick={() => void window.deployDeck.shell.openHttps(dashboardUrl)}>
+              Dashboard
+              <ExternalLink aria-hidden />
+            </Button>
+          ) : null
         }
       />
       {worker ? (
         <WorkerDetail key={`worker:${selected.accountId}:${selected.name}`} accountId={selected.accountId} name={selected.name} />
+      ) : project.isLoading ? (
+        <PanelLoading />
+      ) : project.isError || !project.data ? (
+        <InlineError message={errorMessage(project.error ?? new Error("Project details are unavailable."))} onRetry={() => void project.refetch()} />
       ) : (
-        <ProjectDetail key={`${selected.provider}:${selected.id}`} project={selected} />
+        <ProjectDetail key={`${project.data.provider}:${project.data.id}`} project={project.data} />
       )}
     </InspectorPanel>
   );
 }
 
 function ProjectDetail({ project }: { project: UnifiedProject }) {
+  const client = useQueryClient();
+  const [deploying, setDeploying] = useState(false);
+  const deployLatest = async () => {
+    setDeploying(true);
+    try {
+      if (project.provider === "vercel") {
+        await window.deployDeck.vercel.deployLatest(project.id);
+      } else {
+        await window.deployDeck.cloudflare.createPagesDeployment(project.accountId, project.name);
+      }
+      toast.success("Deployment started");
+      await client.invalidateQueries({ queryKey: ["deployments"] });
+      await client.invalidateQueries({ queryKey: ["project-deployments"] });
+    } catch (error) {
+      toast.error(errorMessage(error));
+    } finally {
+      setDeploying(false);
+    }
+  };
+
   return (
     <Tabs defaultValue="overview" className="flex min-h-0 flex-1 flex-col">
       <TabsList aria-label="Project details" className="shrink-0 overflow-x-auto">
@@ -322,12 +407,17 @@ function ProjectDetail({ project }: { project: UnifiedProject }) {
           <DetailRow label="Output directory" value={project.outputDirectory ?? "—"} mono />
           <DetailRow label="Repository" value={project.repository ?? "—"} />
         </dl>
-        {project.repositoryUrl ? (
-          <Button className="mt-3" size="sm" variant="secondary" onClick={() => void window.deployDeck.shell.openHttps(project.repositoryUrl!)}>
-            Open repository
-            <ExternalLink aria-hidden />
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Button size="sm" loading={deploying} onClick={() => void deployLatest()}>
+            Deploy latest
           </Button>
-        ) : null}
+          {project.repositoryUrl ? (
+            <Button size="sm" variant="secondary" onClick={() => void window.deployDeck.shell.openHttps(project.repositoryUrl!)}>
+              Open repository
+              <ExternalLink aria-hidden />
+            </Button>
+          ) : null}
+        </div>
       </TabsContent>
 
       <TabsContent value="deployments" className="overflow-auto">
@@ -459,9 +549,12 @@ function ProjectDomains({ project }: { project: UnifiedProject }) {
         <div className="divide-y divide-line/70 border-t border-line">
           {(query.data ?? []).map((domain) => (
             <div key={domain.id} className="flex min-h-11 items-center justify-between gap-3 py-2 text-[12px]">
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <p className="truncate font-medium select-text">{domain.name}</p>
                 <p className="mt-0.5 text-[11px] text-muted">{domain.status}</p>
+                {!domain.verified && domain.verificationRecords.length > 0 ? (
+                  <VerificationRecords records={domain.verificationRecords} compact />
+                ) : null}
               </div>
               <div className="flex shrink-0 items-center gap-1">
                 <Button size="sm" variant="ghost" onClick={() => void window.deployDeck.shell.openHttps(`https://${domain.name}`)}>
@@ -537,6 +630,8 @@ function ProjectEnv({ project }: { project: UnifiedProject }) {
   const client = useQueryClient();
   const [key, setKey] = useState("");
   const [value, setValue] = useState("");
+  const [branch, setBranch] = useState("");
+  const [editingId, setEditingId] = useState<string>();
   const [target, setTarget] = useState<"production" | "preview" | "development">("production");
   const [pending, setPending] = useState(false);
   const query = useQuery({
@@ -559,7 +654,9 @@ function ProjectEnv({ project }: { project: UnifiedProject }) {
     setPending(true);
     try {
       if (project.provider === "vercel") {
-        await window.deployDeck.vercel.createEnvVar(project.id, { key: variableKey, value, targets: [target], type: "encrypted" });
+        const input = { key: variableKey, value, targets: [target], type: "encrypted" as const, branch: branch.trim() || undefined };
+        if (editingId) await window.deployDeck.vercel.updateEnvVar(project.id, editingId, input);
+        else await window.deployDeck.vercel.createEnvVar(project.id, input);
       } else {
         await window.deployDeck.cloudflare.upsertPagesEnv({
           accountId: project.accountId,
@@ -569,9 +666,11 @@ function ProjectEnv({ project }: { project: UnifiedProject }) {
           value,
         });
       }
-      toast.success("Variable saved");
+      toast.success(editingId ? "Variable updated" : "Variable saved");
       setKey("");
       setValue("");
+      setBranch("");
+      setEditingId(undefined);
       await client.invalidateQueries({ queryKey: ["project-env"] });
     } catch (error) {
       toast.error(errorMessage(error));
@@ -600,6 +699,17 @@ function ProjectEnv({ project }: { project: UnifiedProject }) {
             onChange={(event) => setValue(event.target.value)}
           />
         </div>
+        {project.provider === "vercel" ? (
+          <Input
+            aria-label="Git branch"
+            placeholder="Branch (optional)"
+            className="font-mono"
+            value={branch}
+            onChange={(event) => setBranch(event.target.value)}
+            autoCapitalize="none"
+            spellCheck={false}
+          />
+        ) : null}
         <div className="flex items-center gap-2">
           <SelectControl
             ariaLabel="Environment target"
@@ -609,8 +719,22 @@ function ProjectEnv({ project }: { project: UnifiedProject }) {
             options={targetOptions}
           />
           <Button size="sm" type="submit" loading={pending} disabled={!key.trim() || !value}>
-            Save variable
+            {editingId ? "Update variable" : "Save variable"}
           </Button>
+          {editingId ? (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => {
+                setEditingId(undefined);
+                setKey("");
+                setValue("");
+                setBranch("");
+              }}
+            >
+              Cancel
+            </Button>
+          ) : null}
         </div>
       </form>
 
@@ -626,6 +750,13 @@ function ProjectEnv({ project }: { project: UnifiedProject }) {
             <EnvRow
               key={item.id}
               item={item}
+              onEdit={() => {
+                setEditingId(item.id);
+                setKey(item.key);
+                setValue(item.value ?? "");
+                setBranch(item.branch ?? "");
+                setTarget((item.targets[0] as typeof target) || "production");
+              }}
               onDelete={async () => {
                 if (project.provider === "vercel") await window.deployDeck.vercel.deleteEnvVar(project.id, item.id);
                 else {
@@ -655,10 +786,12 @@ function ProjectEnv({ project }: { project: UnifiedProject }) {
 function EnvRow({
   item,
   onDelete,
+  onEdit,
   onReveal,
 }: {
-  item: { id: string; key: string; type: string; targets: string[]; value?: string };
+  item: EnvironmentVariable;
   onDelete: () => Promise<void>;
+  onEdit?: () => void;
   onReveal?: () => Promise<string>;
 }) {
   const [revealed, setRevealed] = useState<string>();
@@ -670,10 +803,16 @@ function EnvRow({
         <p className="truncate font-mono font-medium">{item.key}</p>
         <p className="mt-0.5 truncate text-[11px] text-muted">
           {item.type} · {item.targets.join(", ")}
+          {item.branch ? ` · ${item.branch}` : ""}
         </p>
         <p className="mt-0.5 truncate font-mono text-[11px]">{revealed ?? item.value ?? "••••••"}</p>
       </div>
       <div className="flex shrink-0 gap-1">
+        {onEdit ? (
+          <Button size="sm" variant="ghost" onClick={onEdit}>
+            Edit
+          </Button>
+        ) : null}
         {onReveal ? (
           <Button
             size="sm"
@@ -741,7 +880,9 @@ function WorkerDetail({ accountId, name }: { accountId: string; name: string }) 
   const [secretValue, setSecretValue] = useState("");
   const [savingVar, setSavingVar] = useState(false);
   const [savingSecret, setSavingSecret] = useState(false);
+  const [percent, setPercent] = useState("100");
   const timeFormat = prefs.data?.timeFormat ?? "relative";
+  const activeVersion = (versions.data ?? []).find((version) => (version.trafficPercent ?? 0) > 0);
 
   const saveWorkerVar = async (event: FormEvent) => {
     event.preventDefault();
@@ -784,6 +925,8 @@ function WorkerDetail({ accountId, name }: { accountId: string; name: string }) 
       <TabsList aria-label="Worker details" className="shrink-0 overflow-x-auto">
         <TabsTrigger value="versions">Versions</TabsTrigger>
         <TabsTrigger value="deployments">Deployments</TabsTrigger>
+        <TabsTrigger value="routes">Routes</TabsTrigger>
+        <TabsTrigger value="domains">Domains</TabsTrigger>
         <TabsTrigger value="variables">Variables</TabsTrigger>
         <TabsTrigger value="secrets">Secrets</TabsTrigger>
       </TabsList>
@@ -805,25 +948,48 @@ function WorkerDetail({ accountId, name }: { accountId: string; name: string }) 
                     {version.trafficPercent !== undefined ? `${version.trafficPercent}% traffic` : "No active traffic"}
                   </p>
                 </div>
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={() =>
-                    ask({
-                      title: "Deploy this version at 100%",
-                      body: `${name} · ${version.id}`,
-                      actionLabel: "Deploy",
-                      intent: "default",
-                      onConfirm: async () => {
-                        await window.deployDeck.cloudflare.deployWorkerVersion(accountId, name, version.id, 100);
-                        await client.invalidateQueries({ queryKey: ["worker-deployments", accountId, name] });
-                        toast.success("Worker version deployed");
-                      },
-                    })
-                  }
-                >
-                  Deploy 100%
-                </Button>
+                <div className="flex shrink-0 items-center gap-1">
+                  <SelectControl
+                    ariaLabel={`Traffic percent for ${version.id}`}
+                    className="w-20"
+                    size="sm"
+                    value={percent}
+                    onValueChange={setPercent}
+                    options={[
+                      { value: "10", label: "10%" },
+                      { value: "25", label: "25%" },
+                      { value: "50", label: "50%" },
+                      { value: "100", label: "100%" },
+                    ]}
+                  />
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() =>
+                      ask({
+                        title: `Deploy this version at ${percent}%`,
+                        body: `${name} · ${version.id}`,
+                        actionLabel: "Deploy",
+                        intent: "default",
+                        onConfirm: async () => {
+                          const share = Number(percent);
+                          await window.deployDeck.cloudflare.deployWorkerVersion(
+                            accountId,
+                            name,
+                            version.id,
+                            share,
+                            share < 100 ? activeVersion?.id : undefined,
+                          );
+                          await client.invalidateQueries({ queryKey: ["worker-deployments", accountId, name] });
+                          await client.invalidateQueries({ queryKey: ["worker-versions", accountId, name] });
+                          toast.success("Worker version deployed");
+                        },
+                      })
+                    }
+                  >
+                    Deploy
+                  </Button>
+                </div>
               </div>
             ))}
           </div>
@@ -872,6 +1038,12 @@ function WorkerDetail({ accountId, name }: { accountId: string; name: string }) 
         )}
       </TabsContent>
 
+      <TabsContent value="routes" className="overflow-auto">
+        <WorkerRoutesPanel accountId={accountId} name={name} />
+      </TabsContent>
+      <TabsContent value="domains" className="overflow-auto">
+        <WorkerDomainsPanel accountId={accountId} name={name} />
+      </TabsContent>
       <TabsContent value="variables" className="overflow-auto p-3">
         <form className="mb-3 space-y-2" onSubmit={(event) => void saveWorkerVar(event)}>
           <div className="grid grid-cols-2 gap-2">

@@ -9,6 +9,7 @@ It covers:
 - Cloudflare Workers scripts, versions, deployments, live tail, routes, custom domains, variables, and secrets
 - Cloudflare DNS zones and common record types
 - A unified deployments table, command palette, menu bar status, and native notifications
+- Watched projects, live build log refresh, log export, and copyable domain verification records
 
 ## Requirements
 

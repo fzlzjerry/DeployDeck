@@ -8,9 +8,12 @@ import {
   attachWorkerDomain,
   connectCloudflare,
   createDnsRecord,
+  createPagesDeployment,
+  createWorkerRoute,
   deleteDnsRecord,
   deletePagesDeployment,
   deletePagesEnv,
+  deleteWorkerRoute,
   deleteWorkerSecret,
   deleteWorkerVar,
   deployWorkerVersion,
@@ -52,6 +55,7 @@ import {
   cancelVercelDeployment,
   connectVercel,
   createVercelEnvVar,
+  deployVercelLatest,
   deleteVercelDeployment,
   deleteVercelEnvVar,
   getVercelBuildLogs,
@@ -203,6 +207,17 @@ export function registerIpc(window: BrowserWindow): void {
     await promoteVercelDeployment(String(id), String(projectId));
     await addActivity({ kind: "deployment-promoted", provider: "vercel", title: "Promoted deployment to production", targetId: String(id) });
   });
+  handle("vercel:deployLatest", async (projectId, target) => {
+    const created = await deployVercelLatest(String(projectId), target as "production" | "preview" | undefined);
+    await addActivity({
+      kind: "deployment-redeployed",
+      provider: "vercel",
+      title: "Triggered Vercel deployment",
+      projectName: created.projectName,
+      targetId: created.id,
+    });
+    return created;
+  });
   handle("vercel:deleteDeployment", async (id) => {
     await deleteVercelDeployment(String(id));
     await addActivity({ kind: "deployment-deleted", provider: "vercel", title: "Deleted Vercel deployment", targetId: String(id) });
@@ -245,6 +260,16 @@ export function registerIpc(window: BrowserWindow): void {
   handle("cloudflare:pagesLogs", (accountId, projectName, deploymentId) =>
     getPagesLogs(String(accountId), String(projectName), String(deploymentId)),
   );
+  handle("cloudflare:createPagesDeployment", async (accountId, projectName) => {
+    await createPagesDeployment(String(accountId), String(projectName));
+    await addActivity({
+      kind: "deployment-redeployed",
+      provider: "cloudflare-pages",
+      title: "Triggered Pages deployment",
+      projectName: String(projectName),
+      accountId: String(accountId),
+    });
+  });
   handle("cloudflare:retryPagesDeployment", async (accountId, projectName, deploymentId) => {
     await retryPagesDeployment(String(accountId), String(projectName), String(deploymentId));
     await addActivity({
@@ -252,6 +277,8 @@ export function registerIpc(window: BrowserWindow): void {
       provider: "cloudflare-pages",
       title: "Retried Pages deployment",
       projectName: String(projectName),
+      accountId: String(accountId),
+      targetId: deploymentId ? String(deploymentId) : undefined,
     });
   });
   handle("cloudflare:rollbackPagesDeployment", async (accountId, projectName, deploymentId) => {
@@ -328,6 +355,23 @@ export function registerIpc(window: BrowserWindow): void {
   handle("cloudflare:workerRoutes", (accountId, scriptName) =>
     listWorkerRoutes(String(accountId), scriptName as string | undefined),
   );
+  handle("cloudflare:createWorkerRoute", async (zoneId, pattern, scriptName) => {
+    await createWorkerRoute(String(zoneId), String(pattern), String(scriptName));
+    await addActivity({
+      kind: "domain-added",
+      provider: "cloudflare-workers",
+      title: `Added route ${pattern}`,
+      projectName: String(scriptName),
+    });
+  });
+  handle("cloudflare:deleteWorkerRoute", async (zoneId, routeId) => {
+    await deleteWorkerRoute(String(zoneId), String(routeId));
+    await addActivity({
+      kind: "domain-removed",
+      provider: "cloudflare-workers",
+      title: "Deleted Worker route",
+    });
+  });
   handle("cloudflare:workerDomains", (accountId, scriptName) =>
     listWorkerDomains(String(accountId), scriptName as string | undefined),
   );

@@ -1,6 +1,8 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { EmptyState, ScreenError } from "@/components/common/empty-state";
+import { VerificationRecords } from "@/features/domains/verification-records";
+import { useZones } from "@/hooks/use-data";
 import { ProviderMark } from "@/components/common/status-badge";
 import { ScreenToolbar } from "@/components/ui/layout";
 import { Button, Input, SelectControl, TableSkeleton } from "@/components/ui/primitives";
@@ -17,7 +19,10 @@ export function DomainsScreen() {
   const ask = useUiStore((state) => state.askConfirm);
   const [name, setName] = useState("");
   const [target, setTarget] = useState("");
+  const [zoneId, setZoneId] = useState("");
   const [adding, setAdding] = useState(false);
+  const zones = useZones();
+  const [expanded, setExpanded] = useState<string>();
 
   const query = useQuery({
     queryKey: ["domains", projects.data],
@@ -73,6 +78,10 @@ export function DomainsScreen() {
       value: `pages:${project.accountId}:${project.name}`,
       label: `Pages · ${project.name}`,
     })),
+    ...(projects.data?.workers ?? []).map((worker) => ({
+      value: `workers:${worker.accountId}:${worker.name}`,
+      label: `Workers · ${worker.name}`,
+    })),
   ];
 
   const addDomain = async () => {
@@ -86,6 +95,13 @@ export function DomainsScreen() {
       } else if (target.startsWith("pages:")) {
         const [, accountId, ...projectNameParts] = target.split(":");
         await window.deployDeck.cloudflare.addPagesDomain(accountId, projectNameParts.join(":"), domainName);
+      } else if (target.startsWith("workers:")) {
+        const [, accountId, ...scriptParts] = target.split(":");
+        if (!zoneId) {
+          toast.error("Select a DNS zone for this Worker domain.");
+          return;
+        }
+        await window.deployDeck.cloudflare.attachWorkerDomain(accountId, scriptParts.join(":"), domainName, zoneId);
       }
       toast.success("Domain added");
       setName("");
@@ -119,7 +135,18 @@ export function DomainsScreen() {
           options={targetOptions}
           disabled={targetOptions.length === 0}
         />
-        <Button size="sm" loading={adding} disabled={!name.trim() || !target} onClick={() => void addDomain()}>
+        {target.startsWith("workers:") ? (
+          <SelectControl
+            ariaLabel="DNS zone for Worker domain"
+            placeholder="Select zone"
+            className="min-w-36 max-w-52"
+            value={zoneId}
+            onValueChange={setZoneId}
+            options={(zones.data ?? []).map((zone) => ({ value: zone.id, label: zone.name }))}
+            disabled={(zones.data ?? []).length === 0}
+          />
+        ) : null}
+        <Button size="sm" loading={adding} disabled={!name.trim() || !target || (target.startsWith("workers:") && !zoneId)} onClick={() => void addDomain()}>
           Add domain
         </Button>
       </ScreenToolbar>
@@ -167,32 +194,42 @@ export function DomainsScreen() {
             </thead>
             <tbody>
               {domains.map((domain) => (
-                <tr key={`${domain.provider}:${domain.id}`}>
-                  <td className="font-medium">{domain.name}</td>
-                  <td>
-                    <ProviderMark provider={domain.provider} />
-                  </td>
-                  <td>{domain.projectName}</td>
-                  <td className="text-muted">{domain.status}</td>
-                  <td className="w-0">
-                    <div className="flex justify-end gap-1">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        aria-label={`Open ${domain.name}`}
-                        onClick={() => void window.deployDeck.shell.openHttps(`https://${domain.name}`)}
-                      >
-                        Open
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        aria-label={`Copy ${domain.name}`}
-                        onClick={() => void copyText(domain.name)}
-                      >
-                        Copy
-                      </Button>
-                      {domain.provider !== "cloudflare-workers" ? (
+                <Fragment key={`${domain.provider}:${domain.id}`}>
+                  <tr>
+                    <td className="font-medium">{domain.name}</td>
+                    <td>
+                      <ProviderMark provider={domain.provider} />
+                    </td>
+                    <td>{domain.projectName}</td>
+                    <td className="text-muted">{domain.status}</td>
+                    <td className="w-0">
+                      <div className="flex justify-end gap-1">
+                        {domain.verificationRecords.length > 0 && !domain.verified ? (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            aria-expanded={expanded === domain.id}
+                            onClick={() => setExpanded(expanded === domain.id ? undefined : domain.id)}
+                          >
+                            {expanded === domain.id ? "Hide records" : "Records"}
+                          </Button>
+                        ) : null}
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          aria-label={`Open ${domain.name}`}
+                          onClick={() => void window.deployDeck.shell.openHttps(`https://${domain.name}`)}
+                        >
+                          Open
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          aria-label={`Copy ${domain.name}`}
+                          onClick={() => void copyText(domain.name)}
+                        >
+                          Copy
+                        </Button>
                         <Button
                           size="sm"
                           variant="ghost"
@@ -207,12 +244,14 @@ export function DomainsScreen() {
                                 try {
                                   if (domain.provider === "vercel") {
                                     await window.deployDeck.vercel.removeDomain(domain.projectId, domain.name);
-                                  } else {
+                                  } else if (domain.provider === "cloudflare-pages") {
                                     await window.deployDeck.cloudflare.removePagesDomain(
                                       domain.accountId,
                                       domain.projectName,
                                       domain.name,
                                     );
+                                  } else {
+                                    await window.deployDeck.cloudflare.detachWorkerDomain(domain.accountId, domain.id);
                                   }
                                   toast.success("Domain removed");
                                   await client.invalidateQueries({ queryKey: ["domains"] });
@@ -225,10 +264,17 @@ export function DomainsScreen() {
                         >
                           Remove
                         </Button>
-                      ) : null}
-                    </div>
-                  </td>
-                </tr>
+                      </div>
+                    </td>
+                  </tr>
+                  {expanded === domain.id ? (
+                    <tr>
+                      <td colSpan={5} className="whitespace-normal py-2">
+                        <VerificationRecords records={domain.verificationRecords} />
+                      </td>
+                    </tr>
+                  ) : null}
+                </Fragment>
               ))}
             </tbody>
           </table>

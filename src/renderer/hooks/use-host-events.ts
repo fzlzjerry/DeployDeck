@@ -10,6 +10,7 @@ export function useHostEvents() {
   const setCommandOpen = useUiStore((state) => state.setCommandOpen);
   const focusSearch = useUiStore((state) => state.focusSearch);
   const openDeployment = useUiStore((state) => state.openDeployment);
+  const openSelected = useUiStore((state) => state.openSelected);
   const closeInspector = useUiStore((state) => state.closeInspector);
 
   useEffect(() => {
@@ -29,6 +30,7 @@ export function useHostEvents() {
         void queryClient.invalidateQueries();
       }),
       window.deployDeck.on("host:open-command-palette", () => setCommandOpen(true)),
+      window.deployDeck.on("host:open-selected", () => openSelected()),
       window.deployDeck.on("host:focus-search", () => focusSearch()),
       window.deployDeck.on<HostOpenDeploymentPayload>("host:open-deployment", async (payload) => {
         setScreen("deployments");
@@ -73,5 +75,5 @@ export function useHostEvents() {
       off.forEach((unsub) => unsub());
       window.removeEventListener("keydown", onKey);
     };
-  }, [closeInspector, focusSearch, openDeployment, queryClient, setCommandOpen, setScreen]);
+  }, [closeInspector, focusSearch, openDeployment, openSelected, queryClient, setCommandOpen, setScreen]);
 }

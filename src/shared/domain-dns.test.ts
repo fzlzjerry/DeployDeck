@@ -61,7 +61,8 @@ describe("verification records", () => {
 describe("dns helpers", () => {
   it("accepts known record types only", () => {
     assert.equal(asDnsRecordType("txt"), "TXT");
-    assert.equal(asDnsRecordType("HTTPS"), undefined);
+    assert.equal(asDnsRecordType("HTTPS"), "HTTPS");
+    assert.equal(asDnsRecordType("made-up"), undefined);
   });
 
   it("detects duplicate-record provider errors", () => {

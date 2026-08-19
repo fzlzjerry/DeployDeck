@@ -76,7 +76,7 @@
 
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
   --radius: 8px;
-  --sidebar: 240px;
+  --sidebar: 232px;
   --titlebar: 48px;
 
   /* Semantic stacking order. Never use a bare numeric z-index. */
@@ -388,17 +388,24 @@ button:not(:disabled),
 }
 
 .deployment-inspector {
-  width: clamp(380px, 36vw, 440px);
+  width: clamp(420px, 42vw, 540px);
 }
 
 @media (max-width: 1180px) {
-  .deployment-inspector {
+  .deployment-inspector,
+  .inspector-panel {
     position: absolute;
     inset-block: 0;
     right: 0;
     z-index: var(--z-panel-overlay);
-    width: min(440px, 58vw);
+    width: min(560px, 64vw);
     background: var(--canvas);
+    border-left: 0;
+    box-shadow: var(--shadow-popover);
+  }
+
+  .dns-zone-rail {
+    width: 220px;
   }
 }
 

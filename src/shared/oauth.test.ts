@@ -182,9 +182,14 @@ describe("cloudflareCapabilities", () => {
     });
     assert.deepEqual(capabilities, {
       pages: false,
+      pagesWrite: false,
       workers: true,
+      workersWrite: true,
+      workerBuilds: false,
+      workerSchedules: true,
       zones: true,
       dns: true,
+      dnsWrite: true,
       workerRoutes: false,
       workerTail: false,
     });

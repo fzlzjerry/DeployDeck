@@ -123,3 +123,30 @@ export function useZones() {
     queryFn: () => window.deployDeck.cloudflare.listZones(),
   });
 }
+
+export function useDnsZones() {
+  const connection = useConnection();
+  const cloudflare = Boolean(
+    connection.data?.cloudflare.connected && (connection.data.cloudflare.capabilities?.zones ?? true),
+  );
+  const vercel = Boolean(connection.data?.vercel.connected);
+  return useQuery({
+    queryKey: [
+      "dns-zones",
+      connection.data?.vercel.activeTeamId,
+      connection.data?.cloudflare.activeAccountId,
+      cloudflare,
+      vercel,
+    ],
+    enabled: cloudflare || vercel,
+    queryFn: async () => {
+      const [cloudflareZones, vercelZones] = await Promise.all([
+        cloudflare ? window.deployDeck.cloudflare.listZones() : [],
+        vercel ? window.deployDeck.vercel.listDnsZones() : [],
+      ]);
+      return [...cloudflareZones, ...vercelZones].sort((left, right) =>
+        left.name.localeCompare(right.name, undefined, { sensitivity: "base" }),
+      );
+    },
+  });
+}

@@ -10,21 +10,31 @@ import { revokeOAuthCredential } from "./oauth/tokens";
 import {
   addPagesDomain,
   attachWorkerDomain,
+  batchDnsRecords,
   connectCloudflare,
+  createPagesDeployment,
+  createPagesProject,
   createDnsRecord,
+  createWorker,
   createWorkerRoute,
   deleteDnsRecord,
   deletePagesDeployment,
   deletePagesEnv,
+  deletePagesProject,
+  deleteWorker,
   deleteWorkerRoute,
   deleteWorkerSecret,
   deleteWorkerVar,
   deployWorkerVersion,
   detachWorkerDomain,
+  downloadWorker,
+  exportDnsRecords,
   getPagesDeployment,
   getPagesLogs,
   getPagesProject,
   getWorker,
+  getWorkerSubdomain,
+  importDnsRecords,
   listCloudflareAccounts,
   listDnsRecords,
   listPagesDeployments,
@@ -34,12 +44,14 @@ import {
   listWorkerDeployments,
   listWorkerDomains,
   listWorkerRoutes,
+  listWorkerSchedules,
   listWorkerSecrets,
   listWorkerVars,
   listWorkerVersions,
   listWorkers,
   listZones,
   putWorkerSecret,
+  purgePagesBuildCache,
   removePagesDomain,
   resetCloudflareClient,
   restoreWorkerDeployment,
@@ -49,7 +61,13 @@ import {
   setCloudflareWindow,
   startWorkerTail,
   stopWorkerTail,
+  triggerWorkerBuild,
   updateDnsRecord,
+  updatePagesProject,
+  updateWorker,
+  updateWorkerSchedules,
+  updateWorkerSubdomain,
+  uploadWorker,
   upsertPagesEnv,
   upsertWorkerVar,
 } from "./providers/cloudflare-client";
@@ -57,27 +75,42 @@ import {
   addVercelDomain,
   cancelVercelDeployment,
   connectVercel,
+  createVercelDeployment,
+  createVercelDnsRecord,
   createVercelEnvVar,
+  createVercelProject,
+  deleteVercelDnsRecord,
   deleteVercelDeployment,
   deleteVercelEnvVar,
+  deleteVercelProject,
   getVercelBuildLogs,
   getVercelDeployment,
   getVercelProject,
   getVercelRuntimeLogs,
   listVercelDeployments,
+  listVercelDnsRecords,
+  listVercelDnsZones,
   listVercelDomains,
   listVercelEnvVars,
   listVercelProjects,
   loadVercelScope,
   promoteVercelDeployment,
+  moveVercelDomain,
+  pauseVercelProject,
   redeployVercelDeployment,
   rollbackVercelDeployment,
   removeVercelDomain,
   resetVercelClient,
+  resumeVercelProject,
   revealVercelEnvVar,
   updateVercelEnvVar,
+  updateVercelDomain,
+  updateVercelDnsRecord,
+  updateVercelProject,
   verifyVercelDomain,
 } from "./providers/vercel-client";
+import { releaseLocalSource, selectLocalSource } from "./local-sources";
+import { cancelOperation } from "./operations";
 import { getPreferences, getWindowBounds, setPreferences } from "./preferences";
 import { sendToRenderer } from "./window";
 
@@ -282,7 +315,34 @@ export function registerIpc(window: BrowserWindow): void {
 
   handle("vercel:projects", (query) => listVercelProjects(query as string | undefined));
   handle("vercel:project", (projectId) => getVercelProject(String(projectId)));
+  handle("vercel:createProject", async (input) => {
+    const project = await createVercelProject(input as never);
+    await addActivity({ kind: "project-created", provider: "vercel", title: `Created project ${project.name}`, projectName: project.name, targetId: project.id });
+    return project;
+  });
+  handle("vercel:updateProject", async (projectId, patch) => {
+    const project = await updateVercelProject(String(projectId), patch as never);
+    await addActivity({ kind: "project-updated", provider: "vercel", title: `Updated project ${project.name}`, projectName: project.name, targetId: project.id });
+    return project;
+  });
+  handle("vercel:deleteProject", async (projectId) => {
+    await deleteVercelProject(String(projectId));
+    await addActivity({ kind: "project-deleted", provider: "vercel", title: "Deleted Vercel project", targetId: String(projectId) });
+  });
+  handle("vercel:pauseProject", async (projectId) => {
+    await pauseVercelProject(String(projectId));
+    await addActivity({ kind: "project-paused", provider: "vercel", title: "Paused Vercel project", targetId: String(projectId) });
+  });
+  handle("vercel:resumeProject", async (projectId) => {
+    await resumeVercelProject(String(projectId));
+    await addActivity({ kind: "project-resumed", provider: "vercel", title: "Resumed Vercel project", targetId: String(projectId) });
+  });
   handle("vercel:deployments", (query) => listVercelDeployments(query as never));
+  handle("vercel:createDeployment", async (input) => {
+    const result = await createVercelDeployment(input as never);
+    await addActivity({ kind: "deployment-created", provider: "vercel", title: `Created deployment for ${result.resourceName ?? "project"}`, projectName: result.resourceName, targetId: result.resourceId });
+    return result;
+  });
   handle("vercel:deployment", (id) => getVercelDeployment(String(id)));
   handle("vercel:buildLogs", (id) => getVercelBuildLogs(String(id)));
   handle("vercel:runtimeLogs", (projectId, deploymentId) =>
@@ -326,6 +386,16 @@ export function registerIpc(window: BrowserWindow): void {
     await addActivity({ kind: "domain-added", provider: "vercel", title: `Added ${name}`, projectName: String(projectId) });
     return domain;
   });
+  handle("vercel:updateDomain", async (projectId, name, patch) => {
+    const domain = await updateVercelDomain(String(projectId), String(name), patch as never);
+    await addActivity({ kind: "domain-added", provider: "vercel", title: `Updated ${name}`, projectName: String(projectId) });
+    return domain;
+  });
+  handle("vercel:moveDomain", async (projectId, name, targetProjectId) => {
+    const domain = await moveVercelDomain(String(projectId), String(name), String(targetProjectId));
+    await addActivity({ kind: "domain-added", provider: "vercel", title: `Moved ${name}`, projectName: String(targetProjectId) });
+    return domain;
+  });
   handle("vercel:removeDomain", async (projectId, name) => {
     await removeVercelDomain(String(projectId), String(name));
     await addActivity({ kind: "domain-removed", provider: "vercel", title: `Removed ${name}`, projectName: String(projectId) });
@@ -345,13 +415,52 @@ export function registerIpc(window: BrowserWindow): void {
     await addActivity({ kind: "env-variable-deleted", provider: "vercel", title: "Deleted environment variable", projectName: String(projectId), targetId: String(projectId) });
   });
   handle("vercel:revealEnvVar", (projectId, envId) => revealVercelEnvVar(String(projectId), String(envId)));
+  handle("vercel:dnsZones", () => listVercelDnsZones());
+  handle("vercel:dnsRecords", (zoneId, query) => listVercelDnsRecords(String(zoneId), query as never));
+  handle("vercel:createDnsRecord", async (input) => {
+    const record = await createVercelDnsRecord(input as never);
+    await addActivity({ kind: "dns-record-created", provider: "vercel", title: `Created ${record.type} ${record.name}`, targetId: record.zoneId });
+    return record;
+  });
+  handle("vercel:updateDnsRecord", async (recordId, input) => {
+    const record = await updateVercelDnsRecord(String(recordId), input as never);
+    await addActivity({ kind: "dns-record-updated", provider: "vercel", title: `Updated ${record.type} ${record.name}`, targetId: record.zoneId });
+    return record;
+  });
+  handle("vercel:deleteDnsRecord", async (zoneId, recordId) => {
+    await deleteVercelDnsRecord(String(zoneId), String(recordId));
+    await addActivity({ kind: "dns-record-deleted", provider: "vercel", title: "Deleted Vercel DNS record", targetId: String(zoneId) });
+  });
 
   handle("cloudflare:accounts", () => listCloudflareAccounts());
   handle("cloudflare:pagesProjects", (accountId, query) =>
     listPagesProjects(accountId as string | undefined, query as string | undefined),
   );
   handle("cloudflare:pagesProject", (accountId, projectName) => getPagesProject(String(accountId), String(projectName)));
+  handle("cloudflare:createPagesProject", async (input) => {
+    const project = await createPagesProject(input as never);
+    await addActivity({ kind: "project-created", provider: "cloudflare-pages", title: `Created Pages project ${project.name}`, projectName: project.name, targetId: project.id });
+    return project;
+  });
+  handle("cloudflare:updatePagesProject", async (accountId, projectName, patch) => {
+    const project = await updatePagesProject(String(accountId), String(projectName), patch as never);
+    await addActivity({ kind: "project-updated", provider: "cloudflare-pages", title: `Updated Pages project ${project.name}`, projectName: project.name, targetId: project.id });
+    return project;
+  });
+  handle("cloudflare:deletePagesProject", async (accountId, projectName) => {
+    await deletePagesProject(String(accountId), String(projectName));
+    await addActivity({ kind: "project-deleted", provider: "cloudflare-pages", title: `Deleted Pages project ${projectName}`, projectName: String(projectName) });
+  });
+  handle("cloudflare:purgePagesBuildCache", async (accountId, projectName) => {
+    await purgePagesBuildCache(String(accountId), String(projectName));
+    await addActivity({ kind: "project-updated", provider: "cloudflare-pages", title: `Purged build cache for ${projectName}`, projectName: String(projectName) });
+  });
   handle("cloudflare:pagesDeployments", (query) => listPagesDeployments(query as never));
+  handle("cloudflare:createPagesDeployment", async (input) => {
+    const result = await createPagesDeployment(input as never);
+    await addActivity({ kind: "deployment-created", provider: "cloudflare-pages", title: `Created Pages deployment for ${result.resourceName ?? "project"}`, projectName: result.resourceName, targetId: result.resourceId });
+    return result;
+  });
   handle("cloudflare:pagesDeployment", (accountId, projectName, deploymentId) =>
     getPagesDeployment(String(accountId), String(projectName), String(deploymentId)),
   );
@@ -415,6 +524,41 @@ export function registerIpc(window: BrowserWindow): void {
   });
   handle("cloudflare:workers", (accountId, query) => listWorkers(accountId as string | undefined, query as string | undefined));
   handle("cloudflare:worker", (accountId, scriptName) => getWorker(String(accountId), String(scriptName)));
+  handle("cloudflare:createWorker", async (input) => {
+    const worker = await createWorker(input as never);
+    await addActivity({ kind: "worker-created", provider: "cloudflare-workers", title: `Created Worker ${worker.name}`, projectName: worker.name, targetId: worker.accountId });
+    return worker;
+  });
+  handle("cloudflare:updateWorker", async (accountId, scriptName, patch) => {
+    const worker = await updateWorker(String(accountId), String(scriptName), patch as never);
+    await addActivity({ kind: "worker-updated", provider: "cloudflare-workers", title: `Updated Worker ${worker.name}`, projectName: worker.name, targetId: worker.accountId });
+    return worker;
+  });
+  handle("cloudflare:uploadWorker", async (input) => {
+    const result = await uploadWorker(input as never);
+    await addActivity({ kind: "worker-updated", provider: "cloudflare-workers", title: `Uploaded Worker ${result.resourceName ?? "bundle"}`, projectName: result.resourceName, targetId: result.resourceId });
+    return result;
+  });
+  handle("cloudflare:downloadWorker", (accountId, scriptName) => downloadWorker(String(accountId), String(scriptName)));
+  handle("cloudflare:deleteWorker", async (accountId, scriptName) => {
+    await deleteWorker(String(accountId), String(scriptName));
+    await addActivity({ kind: "worker-deleted", provider: "cloudflare-workers", title: `Deleted Worker ${scriptName}`, projectName: String(scriptName), targetId: String(accountId) });
+  });
+  handle("cloudflare:workerSchedules", (accountId, scriptName) => listWorkerSchedules(String(accountId), String(scriptName)));
+  handle("cloudflare:updateWorkerSchedules", async (accountId, scriptName, schedules) => {
+    await updateWorkerSchedules(String(accountId), String(scriptName), schedules as never);
+    await addActivity({ kind: "worker-schedules-updated", provider: "cloudflare-workers", title: `Updated schedules for ${scriptName}`, projectName: String(scriptName), targetId: String(accountId) });
+  });
+  handle("cloudflare:workerSubdomain", (accountId, scriptName) => getWorkerSubdomain(String(accountId), String(scriptName)));
+  handle("cloudflare:updateWorkerSubdomain", async (accountId, scriptName, state) => {
+    await updateWorkerSubdomain(String(accountId), String(scriptName), state as never);
+    await addActivity({ kind: "worker-updated", provider: "cloudflare-workers", title: `Updated workers.dev for ${scriptName}`, projectName: String(scriptName), targetId: String(accountId) });
+  });
+  handle("cloudflare:triggerWorkerBuild", async (accountId, scriptName, branch, commitSha) => {
+    const result = await triggerWorkerBuild(String(accountId), String(scriptName), String(branch), commitSha as string | undefined);
+    await addActivity({ kind: "deployment-created", provider: "cloudflare-workers", title: `Triggered Worker build for ${scriptName}`, projectName: String(scriptName), targetId: result.resourceId });
+    return result;
+  });
   handle("cloudflare:workerVersions", (accountId, scriptName) => listWorkerVersions(String(accountId), String(scriptName)));
   handle("cloudflare:workerDeployments", (accountId, scriptName) =>
     listWorkerDeployments(String(accountId), String(scriptName)),
@@ -512,6 +656,16 @@ export function registerIpc(window: BrowserWindow): void {
     await deleteDnsRecord(String(zoneId), String(recordId));
     await addActivity({ kind: "dns-record-deleted", provider: "cloudflare", title: "Deleted DNS record", targetId: String(zoneId) });
   });
+  handle("cloudflare:batchDnsRecords", async (input) => {
+    await batchDnsRecords(input as never);
+    await addActivity({ kind: "dns-record-updated", provider: "cloudflare", title: "Applied batch DNS changes", targetId: String((input as { zoneId?: string }).zoneId ?? "") });
+  });
+  handle("cloudflare:importDnsRecords", async (zoneId, bind) => {
+    const result = await importDnsRecords(String(zoneId), String(bind));
+    await addActivity({ kind: "dns-record-created", provider: "cloudflare", title: `Imported ${result.added} DNS records`, targetId: String(zoneId) });
+    return result;
+  });
+  handle("cloudflare:exportDnsRecords", (zoneId) => exportDnsRecords(String(zoneId)));
 
   handle("prefs:get", () => getPreferences());
   handle("prefs:set", (patch) => setPreferences(patch as Partial<AppPreferences>));
@@ -537,4 +691,21 @@ export function registerIpc(window: BrowserWindow): void {
     await writeFile(result.filePath, String(contents), "utf8");
     return true;
   });
+  handle("files:openText", async (options) => {
+    const value = (options ?? {}) as { extensions?: string[]; title?: string };
+    const window = BrowserWindow.getFocusedWindow();
+    const result = await dialog.showOpenDialog(window ?? BrowserWindow.getAllWindows()[0], {
+      title: value.title ?? "Open text file",
+      properties: ["openFile"],
+      filters: value.extensions?.length ? [{ name: "Text", extensions: value.extensions }] : undefined,
+    });
+    const filePath = result.filePaths[0];
+    if (result.canceled || !filePath) return null;
+    const { readFile } = await import("node:fs/promises");
+    const { basename } = await import("node:path");
+    return { name: basename(filePath), contents: await readFile(filePath, "utf8") };
+  });
+  handle("files:selectLocalSource", (kind) => selectLocalSource(kind as never));
+  handle("files:releaseLocalSource", async (sourceId) => releaseLocalSource(String(sourceId)));
+  handle("operations:cancel", async (operationId) => cancelOperation(String(operationId)));
 }

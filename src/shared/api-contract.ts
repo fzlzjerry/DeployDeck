@@ -5,10 +5,14 @@ import type {
   DeploymentFilters,
   DeploymentLogEntry,
   DnsRecord,
-  DnsRecordType,
+  SupportedDnsRecordType,
   DnsZone,
+  DeploymentSource,
   EnvironmentVariable,
+  LocalSourceHandle,
   LocalActivityEntry,
+  OperationProgress,
+  OperationResult,
   PagesDeploymentDetail,
   Paginated,
   Screen,
@@ -20,9 +24,13 @@ import type {
   WindowBounds,
   WorkerDeployment,
   WorkerRoute,
+  WorkerSchedule,
   WorkerScript,
   WorkerVersion,
+  ProjectCreateInput,
+  ProjectPatchInput,
 } from "./models";
+import type { DnsRecordWrite } from "./dns-records";
 
 export type IpcChannel =
   | "connections:status"
@@ -35,7 +43,13 @@ export type IpcChannel =
   | "connections:setCloudflareAccount"
   | "vercel:projects"
   | "vercel:project"
+  | "vercel:createProject"
+  | "vercel:updateProject"
+  | "vercel:deleteProject"
+  | "vercel:pauseProject"
+  | "vercel:resumeProject"
   | "vercel:deployments"
+  | "vercel:createDeployment"
   | "vercel:deployment"
   | "vercel:buildLogs"
   | "vercel:runtimeLogs"
@@ -46,6 +60,8 @@ export type IpcChannel =
   | "vercel:deleteDeployment"
   | "vercel:domains"
   | "vercel:addDomain"
+  | "vercel:updateDomain"
+  | "vercel:moveDomain"
   | "vercel:removeDomain"
   | "vercel:verifyDomain"
   | "vercel:envVars"
@@ -53,10 +69,20 @@ export type IpcChannel =
   | "vercel:updateEnvVar"
   | "vercel:deleteEnvVar"
   | "vercel:revealEnvVar"
+  | "vercel:dnsZones"
+  | "vercel:dnsRecords"
+  | "vercel:createDnsRecord"
+  | "vercel:updateDnsRecord"
+  | "vercel:deleteDnsRecord"
   | "cloudflare:accounts"
   | "cloudflare:pagesProjects"
   | "cloudflare:pagesProject"
+  | "cloudflare:createPagesProject"
+  | "cloudflare:updatePagesProject"
+  | "cloudflare:deletePagesProject"
+  | "cloudflare:purgePagesBuildCache"
   | "cloudflare:pagesDeployments"
+  | "cloudflare:createPagesDeployment"
   | "cloudflare:pagesDeployment"
   | "cloudflare:pagesLogs"
   | "cloudflare:retryPagesDeployment"
@@ -71,6 +97,16 @@ export type IpcChannel =
   | "cloudflare:deletePagesEnv"
   | "cloudflare:workers"
   | "cloudflare:worker"
+  | "cloudflare:createWorker"
+  | "cloudflare:updateWorker"
+  | "cloudflare:uploadWorker"
+  | "cloudflare:downloadWorker"
+  | "cloudflare:deleteWorker"
+  | "cloudflare:workerSchedules"
+  | "cloudflare:updateWorkerSchedules"
+  | "cloudflare:workerSubdomain"
+  | "cloudflare:updateWorkerSubdomain"
+  | "cloudflare:triggerWorkerBuild"
   | "cloudflare:workerVersions"
   | "cloudflare:workerDeployments"
   | "cloudflare:deployWorkerVersion"
@@ -94,6 +130,9 @@ export type IpcChannel =
   | "cloudflare:createDnsRecord"
   | "cloudflare:updateDnsRecord"
   | "cloudflare:deleteDnsRecord"
+  | "cloudflare:batchDnsRecords"
+  | "cloudflare:importDnsRecords"
+  | "cloudflare:exportDnsRecords"
   | "prefs:get"
   | "prefs:set"
   | "activity:list"
@@ -101,6 +140,10 @@ export type IpcChannel =
   | "window:getBounds"
   | "shell:openHttps"
   | "files:saveText"
+  | "files:openText"
+  | "files:selectLocalSource"
+  | "files:releaseLocalSource"
+  | "operations:cancel"
   | "app:getVersion";
 
 export type HostEvent =
@@ -116,6 +159,7 @@ export type HostEvent =
   | "host:open-command-palette"
   | "host:open-selected"
   | "host:worker-tail"
+  | "host:operation-progress"
   | "host:tray-snapshot-needed";
 
 export interface DeploymentListQuery extends DeploymentFilters {
@@ -141,16 +185,46 @@ export interface PagesEnvInput {
   secret?: boolean;
 }
 
-export interface DnsRecordInput {
+export interface DomainPatchInput {
+  redirect?: string | null;
+  redirectStatusCode?: 301 | 302 | 307 | 308 | null;
+  gitBranch?: string | null;
+  customEnvironmentId?: string | null;
+}
+
+export type DnsRecordInput = DnsRecordWrite;
+
+export interface DnsBatchInput {
+  provider: "cloudflare" | "vercel";
   zoneId: string;
-  type: DnsRecordType;
-  name: string;
-  content: string;
-  ttl: number;
-  proxied?: boolean;
-  priority?: number;
-  comment?: string;
-  data?: Record<string, string | number | boolean | undefined>;
+  deletes?: string[];
+  patches?: Array<{ id: string; input: DnsRecordInput }>;
+  puts?: Array<{ id: string; input: DnsRecordInput }>;
+  posts?: DnsRecordInput[];
+}
+
+export interface CreateDeploymentInput {
+  projectId: string;
+  accountId?: string;
+  projectName?: string;
+  source: DeploymentSource;
+  target: "preview" | "production";
+  force?: boolean;
+}
+
+export interface WorkerUploadInput {
+  accountId: string;
+  scriptName: string;
+  sourceId: string;
+  compatibilityDate?: string;
+  compatibilityFlags?: string[];
+  message?: string;
+  deploy?: boolean;
+}
+
+export interface WorkerSubdomainState {
+  enabled: boolean;
+  previewsEnabled?: boolean;
 }
 
 export interface WorkerTailEvent {
@@ -172,7 +246,13 @@ export interface DeployDeckApi {
   vercel: {
     listProjects(query?: string): Promise<UnifiedProject[]>;
     getProject(projectId: string): Promise<UnifiedProject>;
+    createProject(input: ProjectCreateInput): Promise<UnifiedProject>;
+    updateProject(projectId: string, patch: ProjectPatchInput): Promise<UnifiedProject>;
+    deleteProject(projectId: string): Promise<void>;
+    pauseProject(projectId: string): Promise<void>;
+    resumeProject(projectId: string): Promise<void>;
     listDeployments(query: DeploymentListQuery): Promise<Paginated<UnifiedDeployment>>;
+    createDeployment(input: CreateDeploymentInput): Promise<OperationResult>;
     getDeployment(id: string): Promise<VercelDeploymentDetail>;
     getBuildLogs(id: string): Promise<DeploymentLogEntry[]>;
     getRuntimeLogs(projectId: string, deploymentId: string): Promise<DeploymentLogEntry[] | { unavailable: string }>;
@@ -183,6 +263,8 @@ export interface DeployDeckApi {
     deleteDeployment(id: string): Promise<void>;
     listDomains(projectId: string): Promise<UnifiedDomain[]>;
     addDomain(projectId: string, name: string): Promise<UnifiedDomain>;
+    updateDomain(projectId: string, name: string, patch: DomainPatchInput): Promise<UnifiedDomain>;
+    moveDomain(projectId: string, name: string, targetProjectId: string): Promise<UnifiedDomain>;
     removeDomain(projectId: string, name: string): Promise<void>;
     verifyDomain(projectId: string, name: string): Promise<UnifiedDomain>;
     listEnvVars(projectId: string): Promise<EnvironmentVariable[]>;
@@ -190,11 +272,21 @@ export interface DeployDeckApi {
     updateEnvVar(projectId: string, envId: string, input: EnvVarInput): Promise<void>;
     deleteEnvVar(projectId: string, envId: string): Promise<void>;
     revealEnvVar(projectId: string, envId: string): Promise<string>;
+    listDnsZones(): Promise<DnsZone[]>;
+    listDnsRecords(zoneId: string, query?: { search?: string; type?: SupportedDnsRecordType | "all"; page?: number }): Promise<Paginated<DnsRecord>>;
+    createDnsRecord(input: DnsRecordInput): Promise<DnsRecord>;
+    updateDnsRecord(recordId: string, input: DnsRecordInput): Promise<DnsRecord>;
+    deleteDnsRecord(zoneId: string, recordId: string): Promise<void>;
   };
   cloudflare: {
     listPagesProjects(accountId?: string, query?: string): Promise<UnifiedProject[]>;
     getPagesProject(accountId: string, projectName: string): Promise<UnifiedProject>;
+    createPagesProject(input: ProjectCreateInput): Promise<UnifiedProject>;
+    updatePagesProject(accountId: string, projectName: string, patch: ProjectPatchInput): Promise<UnifiedProject>;
+    deletePagesProject(accountId: string, projectName: string): Promise<void>;
+    purgePagesBuildCache(accountId: string, projectName: string): Promise<void>;
     listPagesDeployments(query: DeploymentListQuery & { accountId?: string; projectName?: string }): Promise<Paginated<UnifiedDeployment>>;
+    createPagesDeployment(input: CreateDeploymentInput): Promise<OperationResult>;
     getPagesDeployment(accountId: string, projectName: string, deploymentId: string): Promise<PagesDeploymentDetail>;
     getPagesLogs(accountId: string, projectName: string, deploymentId: string): Promise<DeploymentLogEntry[]>;
     retryPagesDeployment(accountId: string, projectName: string, deploymentId?: string): Promise<void>;
@@ -209,6 +301,16 @@ export interface DeployDeckApi {
     deletePagesEnv(accountId: string, projectName: string, environment: "production" | "preview", name: string): Promise<void>;
     listWorkers(accountId?: string, query?: string): Promise<WorkerScript[]>;
     getWorker(accountId: string, scriptName: string): Promise<WorkerScript>;
+    createWorker(input: ProjectCreateInput): Promise<WorkerScript>;
+    updateWorker(accountId: string, scriptName: string, patch: ProjectPatchInput): Promise<WorkerScript>;
+    uploadWorker(input: WorkerUploadInput): Promise<OperationResult>;
+    downloadWorker(accountId: string, scriptName: string): Promise<boolean>;
+    deleteWorker(accountId: string, scriptName: string): Promise<void>;
+    listWorkerSchedules(accountId: string, scriptName: string): Promise<WorkerSchedule[]>;
+    updateWorkerSchedules(accountId: string, scriptName: string, schedules: WorkerSchedule[]): Promise<void>;
+    getWorkerSubdomain(accountId: string, scriptName: string): Promise<WorkerSubdomainState>;
+    updateWorkerSubdomain(accountId: string, scriptName: string, state: WorkerSubdomainState): Promise<void>;
+    triggerWorkerBuild(accountId: string, scriptName: string, branch: string, commitSha?: string): Promise<OperationResult>;
     listWorkerVersions(accountId: string, scriptName: string): Promise<WorkerVersion[]>;
     listWorkerDeployments(accountId: string, scriptName: string): Promise<WorkerDeployment[]>;
     deployWorkerVersion(accountId: string, scriptName: string, versionId: string, percentage?: number, previousVersionId?: string): Promise<void>;
@@ -228,10 +330,13 @@ export interface DeployDeckApi {
     startWorkerTail(accountId: string, scriptName: string): Promise<{ sessionId: string }>;
     stopWorkerTail(sessionId: string): Promise<void>;
     listZones(accountId?: string, query?: string): Promise<DnsZone[]>;
-    listDnsRecords(zoneId: string, query?: { search?: string; type?: DnsRecordType | "all"; proxied?: boolean; page?: number }): Promise<Paginated<DnsRecord>>;
+    listDnsRecords(zoneId: string, query?: { search?: string; type?: SupportedDnsRecordType | "all"; proxied?: boolean; page?: number }): Promise<Paginated<DnsRecord>>;
     createDnsRecord(input: DnsRecordInput): Promise<DnsRecord>;
     updateDnsRecord(recordId: string, input: DnsRecordInput): Promise<DnsRecord>;
     deleteDnsRecord(zoneId: string, recordId: string): Promise<void>;
+    batchDnsRecords(input: DnsBatchInput): Promise<void>;
+    importDnsRecords(zoneId: string, bind: string): Promise<{ added: number; parsed: number }>;
+    exportDnsRecords(zoneId: string): Promise<string>;
   };
   prefs: {
     get(): Promise<AppPreferences>;
@@ -249,6 +354,12 @@ export interface DeployDeckApi {
   };
   files: {
     saveText(defaultName: string, contents: string): Promise<boolean>;
+    openText(options?: { extensions?: string[]; title?: string }): Promise<{ name: string; contents: string } | null>;
+    selectLocalSource(kind: LocalSourceHandle["kind"]): Promise<LocalSourceHandle | null>;
+    releaseLocalSource(sourceId: string): Promise<void>;
+  };
+  operations: {
+    cancel(operationId: string): Promise<void>;
   };
   app: {
     getVersion(): Promise<string>;
@@ -271,6 +382,8 @@ export interface HostThemePayload {
   theme: ThemePreference;
   resolved: "light" | "dark";
 }
+
+export type HostOperationProgressPayload = OperationProgress;
 
 declare global {
   interface Window {

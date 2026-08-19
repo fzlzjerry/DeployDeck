@@ -34,18 +34,28 @@ export interface OAuthTokenSet {
 
 export interface CloudflareCapabilities {
   pages: boolean;
+  pagesWrite: boolean;
   workers: boolean;
+  workersWrite: boolean;
+  workerBuilds: boolean;
+  workerSchedules: boolean;
   zones: boolean;
   dns: boolean;
+  dnsWrite: boolean;
   workerRoutes: boolean;
   workerTail: boolean;
 }
 
 const ALL_CLOUDFLARE_CAPABILITIES: CloudflareCapabilities = {
   pages: true,
+  pagesWrite: true,
   workers: true,
+  workersWrite: true,
+  workerBuilds: true,
+  workerSchedules: true,
   zones: true,
   dns: true,
+  dnsWrite: true,
   workerRoutes: true,
   workerTail: true,
 };
@@ -155,9 +165,14 @@ export function cloudflareCapabilities(credential: StoredCredential | null | und
   if (!credential) {
     return {
       pages: false,
+      pagesWrite: false,
       workers: false,
+      workersWrite: false,
+      workerBuilds: false,
+      workerSchedules: false,
       zones: false,
       dns: false,
+      dnsWrite: false,
       workerRoutes: false,
       workerTail: false,
     };
@@ -166,9 +181,14 @@ export function cloudflareCapabilities(credential: StoredCredential | null | und
   if (!credential.scopes?.length) {
     return {
       pages: false,
+      pagesWrite: false,
       workers: true,
+      workersWrite: true,
+      workerBuilds: false,
+      workerSchedules: true,
       zones: true,
       dns: true,
+      dnsWrite: true,
       workerRoutes: true,
       workerTail: true,
     };
@@ -176,11 +196,18 @@ export function cloudflareCapabilities(credential: StoredCredential | null | und
 
   const scopes = credential.scopes.map((scope) => scope.toLowerCase());
   const hasPrefix = (...prefixes: string[]) => scopes.some((scope) => prefixes.some((prefix) => scope.startsWith(prefix)));
+  const hasWrite = (...prefixes: string[]) =>
+    scopes.some((scope) => prefixes.some((prefix) => scope.startsWith(prefix)) && /(write|edit|update|create)/.test(scope));
   return {
     pages: hasPrefix("pages.", "cloudflare-pages."),
+    pagesWrite: hasWrite("pages.", "cloudflare-pages."),
     workers: hasPrefix("workers-scripts."),
+    workersWrite: hasWrite("workers-scripts."),
+    workerBuilds: hasPrefix("workers-builds.", "workers-builds-config."),
+    workerSchedules: hasPrefix("workers-scripts.", "workers-cron."),
     zones: hasPrefix("zone."),
     dns: hasPrefix("dns."),
+    dnsWrite: hasWrite("dns."),
     workerRoutes: hasPrefix("workers-routes."),
     workerTail: hasPrefix("workers-tail."),
   };

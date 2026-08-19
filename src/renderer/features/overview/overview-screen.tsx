@@ -1,4 +1,4 @@
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, CheckCircle2 } from "lucide-react";
 import type { ReactNode } from "react";
 import type { DeploymentFilters, DeploymentState, UnifiedDeployment } from "@shared/models";
 import { EmptyState, ScreenError } from "@/components/common/empty-state";
@@ -126,10 +126,10 @@ export function OverviewScreen() {
             {deployments.isLoading ? (
               <LoadingRows count={4} />
             ) : attentionItems.length === 0 ? (
-              <EmptyState
-                size="inline"
+              <PanelRow
+                leading={<span className="grid size-7 place-items-center rounded-md bg-ready-soft text-ready-ink"><CheckCircle2 className="size-3.5" aria-hidden /></span>}
                 title="Nothing needs attention"
-                body="Deployments that are queued, building, or failed will surface here first."
+                description="Queued, building, and failed deployments will surface here first."
               />
             ) : (
               attentionItems.map((item) => (

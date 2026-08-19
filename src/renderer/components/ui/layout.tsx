@@ -64,7 +64,7 @@ export const ScreenToolbar = React.forwardRef<HTMLDivElement, React.ComponentPro
   },
 );
 
-const inspectorPanelVariants = cva("flex min-h-0 shrink-0 flex-col border-l border-line bg-bg", {
+const inspectorPanelVariants = cva("inspector-panel flex min-h-0 shrink-0 flex-col border-l border-line bg-bg", {
   variants: {
     size: {
       sm: "w-[min(340px,42vw)]",
@@ -83,6 +83,13 @@ export const InspectorPanel = React.forwardRef<HTMLElement, InspectorPanelProps>
   { className, size, ...props },
   ref,
 ) {
+  const returnFocus = React.useRef<HTMLElement | null>(null);
+  React.useEffect(() => {
+    returnFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    return () => {
+      window.requestAnimationFrame(() => returnFocus.current?.focus());
+    };
+  }, []);
   return <aside ref={ref} className={cn(inspectorPanelVariants({ size }), className)} {...props} />;
 });
 
@@ -98,6 +105,17 @@ export const InspectorHeader = React.forwardRef<HTMLDivElement, InspectorHeaderP
   { title, subtitle, actions, onClose, closeLabel = "Close inspector", className, ...props },
   ref,
 ) {
+  React.useEffect(() => {
+    if (!onClose) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.defaultPrevented) return;
+      event.preventDefault();
+      onClose();
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [onClose]);
+
   return (
     <div
       ref={ref}

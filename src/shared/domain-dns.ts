@@ -1,11 +1,10 @@
 import type { DnsRecordType, DnsZone, DomainVerificationRecord, UnifiedDomain } from "./models";
-
-const RECORD_TYPES = new Set<DnsRecordType>(["A", "AAAA", "CNAME", "TXT", "MX", "CAA", "SRV", "NS"]);
+import { isSupportedDnsRecordType } from "./dns-records";
 
 export function asDnsRecordType(value: string | undefined): DnsRecordType | undefined {
   if (!value) return undefined;
-  const type = value.toUpperCase() as DnsRecordType;
-  return RECORD_TYPES.has(type) ? type : undefined;
+  const type = value.toUpperCase();
+  return isSupportedDnsRecordType(type) ? type : undefined;
 }
 
 export function matchDnsZone<T extends Pick<DnsZone, "name">>(hostname: string, zones: T[]): T | undefined {

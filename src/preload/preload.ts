@@ -19,7 +19,13 @@ const api: DeployDeckApi = {
   vercel: {
     listProjects: (query) => invoke("vercel:projects", query),
     getProject: (projectId) => invoke("vercel:project", projectId),
+    createProject: (input) => invoke("vercel:createProject", input),
+    updateProject: (projectId, patch) => invoke("vercel:updateProject", projectId, patch),
+    deleteProject: (projectId) => invoke("vercel:deleteProject", projectId),
+    pauseProject: (projectId) => invoke("vercel:pauseProject", projectId),
+    resumeProject: (projectId) => invoke("vercel:resumeProject", projectId),
     listDeployments: (query) => invoke("vercel:deployments", query),
+    createDeployment: (input) => invoke("vercel:createDeployment", input),
     getDeployment: (id) => invoke("vercel:deployment", id),
     getBuildLogs: (id) => invoke("vercel:buildLogs", id),
     getRuntimeLogs: (projectId, deploymentId) => invoke("vercel:runtimeLogs", projectId, deploymentId),
@@ -30,6 +36,8 @@ const api: DeployDeckApi = {
     deleteDeployment: (id) => invoke("vercel:deleteDeployment", id),
     listDomains: (projectId) => invoke("vercel:domains", projectId),
     addDomain: (projectId, name) => invoke("vercel:addDomain", projectId, name),
+    updateDomain: (projectId, name, patch) => invoke("vercel:updateDomain", projectId, name, patch),
+    moveDomain: (projectId, name, targetProjectId) => invoke("vercel:moveDomain", projectId, name, targetProjectId),
     removeDomain: (projectId, name) => invoke("vercel:removeDomain", projectId, name),
     verifyDomain: (projectId, name) => invoke("vercel:verifyDomain", projectId, name),
     listEnvVars: (projectId) => invoke("vercel:envVars", projectId),
@@ -37,11 +45,23 @@ const api: DeployDeckApi = {
     updateEnvVar: (projectId, envId, input) => invoke("vercel:updateEnvVar", projectId, envId, input),
     deleteEnvVar: (projectId, envId) => invoke("vercel:deleteEnvVar", projectId, envId),
     revealEnvVar: (projectId, envId) => invoke("vercel:revealEnvVar", projectId, envId),
+    listDnsZones: () => invoke("vercel:dnsZones"),
+    listDnsRecords: (zoneId, query) => invoke("vercel:dnsRecords", zoneId, query),
+    createDnsRecord: (input) => invoke("vercel:createDnsRecord", input),
+    updateDnsRecord: (recordId, input) => invoke("vercel:updateDnsRecord", recordId, input),
+    deleteDnsRecord: (zoneId, recordId) => invoke("vercel:deleteDnsRecord", zoneId, recordId),
   },
   cloudflare: {
     listPagesProjects: (accountId, query) => invoke("cloudflare:pagesProjects", accountId, query),
     getPagesProject: (accountId, projectName) => invoke("cloudflare:pagesProject", accountId, projectName),
+    createPagesProject: (input) => invoke("cloudflare:createPagesProject", input),
+    updatePagesProject: (accountId, projectName, patch) =>
+      invoke("cloudflare:updatePagesProject", accountId, projectName, patch),
+    deletePagesProject: (accountId, projectName) => invoke("cloudflare:deletePagesProject", accountId, projectName),
+    purgePagesBuildCache: (accountId, projectName) =>
+      invoke("cloudflare:purgePagesBuildCache", accountId, projectName),
     listPagesDeployments: (query) => invoke("cloudflare:pagesDeployments", query),
+    createPagesDeployment: (input) => invoke("cloudflare:createPagesDeployment", input),
     getPagesDeployment: (accountId, projectName, deploymentId) =>
       invoke("cloudflare:pagesDeployment", accountId, projectName, deploymentId),
     getPagesLogs: (accountId, projectName, deploymentId) =>
@@ -65,6 +85,19 @@ const api: DeployDeckApi = {
       invoke("cloudflare:deletePagesEnv", accountId, projectName, environment, name),
     listWorkers: (accountId, query) => invoke("cloudflare:workers", accountId, query),
     getWorker: (accountId, scriptName) => invoke("cloudflare:worker", accountId, scriptName),
+    createWorker: (input) => invoke("cloudflare:createWorker", input),
+    updateWorker: (accountId, scriptName, patch) => invoke("cloudflare:updateWorker", accountId, scriptName, patch),
+    uploadWorker: (input) => invoke("cloudflare:uploadWorker", input),
+    downloadWorker: (accountId, scriptName) => invoke("cloudflare:downloadWorker", accountId, scriptName),
+    deleteWorker: (accountId, scriptName) => invoke("cloudflare:deleteWorker", accountId, scriptName),
+    listWorkerSchedules: (accountId, scriptName) => invoke("cloudflare:workerSchedules", accountId, scriptName),
+    updateWorkerSchedules: (accountId, scriptName, schedules) =>
+      invoke("cloudflare:updateWorkerSchedules", accountId, scriptName, schedules),
+    getWorkerSubdomain: (accountId, scriptName) => invoke("cloudflare:workerSubdomain", accountId, scriptName),
+    updateWorkerSubdomain: (accountId, scriptName, state) =>
+      invoke("cloudflare:updateWorkerSubdomain", accountId, scriptName, state),
+    triggerWorkerBuild: (accountId, scriptName, branch, commitSha) =>
+      invoke("cloudflare:triggerWorkerBuild", accountId, scriptName, branch, commitSha),
     listWorkerVersions: (accountId, scriptName) => invoke("cloudflare:workerVersions", accountId, scriptName),
     listWorkerDeployments: (accountId, scriptName) => invoke("cloudflare:workerDeployments", accountId, scriptName),
     deployWorkerVersion: (accountId, scriptName, versionId, percentage, previousVersionId) =>
@@ -96,6 +129,9 @@ const api: DeployDeckApi = {
     createDnsRecord: (input) => invoke("cloudflare:createDnsRecord", input),
     updateDnsRecord: (recordId, input) => invoke("cloudflare:updateDnsRecord", recordId, input),
     deleteDnsRecord: (zoneId, recordId) => invoke("cloudflare:deleteDnsRecord", zoneId, recordId),
+    batchDnsRecords: (input) => invoke("cloudflare:batchDnsRecords", input),
+    importDnsRecords: (zoneId, bind) => invoke("cloudflare:importDnsRecords", zoneId, bind),
+    exportDnsRecords: (zoneId) => invoke("cloudflare:exportDnsRecords", zoneId),
   },
   prefs: {
     get: () => invoke("prefs:get"),
@@ -113,6 +149,12 @@ const api: DeployDeckApi = {
   },
   files: {
     saveText: (defaultName, contents) => invoke("files:saveText", defaultName, contents),
+    openText: (options) => invoke("files:openText", options),
+    selectLocalSource: (kind) => invoke("files:selectLocalSource", kind),
+    releaseLocalSource: (sourceId) => invoke("files:releaseLocalSource", sourceId),
+  },
+  operations: {
+    cancel: (operationId) => invoke("operations:cancel", operationId),
   },
   app: {
     getVersion: () => invoke("app:getVersion"),

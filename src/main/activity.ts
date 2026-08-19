@@ -6,7 +6,35 @@ const MAX_ACTIVITY = 500;
 
 export async function listActivity(): Promise<LocalActivityEntry[]> {
   const store = await getStore();
-  return store.get("activity") ?? [];
+  const stored = (store.get("activity") ?? []) as unknown[];
+  const migrated = stored.flatMap((value) => migrateActivity(value));
+  if (migrated.length !== stored.length || migrated.some((item, index) => item !== stored[index])) {
+    store.set("activity", migrated);
+  }
+  return migrated;
+}
+
+function migrateActivity(value: unknown): LocalActivityEntry[] {
+  if (!value || typeof value !== "object") return [];
+  const row = value as Record<string, unknown>;
+  const title = typeof row.title === "string" ? row.title : typeof row.detail === "string" ? row.detail : undefined;
+  if (!title) return [];
+  const at = typeof row.at === "string" && Number.isFinite(Date.parse(row.at)) ? row.at : new Date().toISOString();
+  const provider = ["vercel", "cloudflare", "cloudflare-pages", "cloudflare-workers"].includes(String(row.provider))
+    ? row.provider as LocalActivityEntry["provider"]
+    : undefined;
+  const item: LocalActivityEntry = {
+    id: typeof row.id === "string" && row.id ? row.id : randomUUID(),
+    at,
+    kind: typeof row.kind === "string" ? row.kind as ActivityKind : "connection-updated",
+    provider,
+    title,
+    detail: typeof row.detail === "string" ? row.detail : undefined,
+    projectName: typeof row.projectName === "string" ? row.projectName : undefined,
+    targetId: typeof row.targetId === "string" ? row.targetId : undefined,
+  };
+  const alreadyNormalized = Object.keys(item).every((key) => item[key as keyof LocalActivityEntry] === row[key]);
+  return [alreadyNormalized ? value as LocalActivityEntry : item];
 }
 
 export async function addActivity(entry: Omit<LocalActivityEntry, "id" | "at"> & { at?: string }): Promise<LocalActivityEntry> {

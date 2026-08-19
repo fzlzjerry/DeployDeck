@@ -249,6 +249,7 @@ function SignInButton({ provider, reconnect }: { provider: ProviderConnectionSta
   return (
     <Button
       type="button"
+      variant={reconnect ? "secondary" : "default"}
       onClick={provider.signIn}
       disabled={!provider.oauthAvailable || provider.connecting || provider.oauthBlocked}
       title={provider.oauthAvailable ? undefined : "Set the OAuth client ID in .env to enable sign-in."}
@@ -452,7 +453,7 @@ export function ProviderConnectionRow({ provider }: { provider: ProviderConnecti
             {provider.error}
           </p>
         ) : null}
-        <PasteTokenSlot provider={provider} defaultOpen={!provider.oauthAvailable || provider.connected} />
+        <PasteTokenSlot provider={provider} defaultOpen={!provider.oauthAvailable && !provider.connected} />
         {provider.connected ? <DisconnectButton provider={provider} /> : null}
       </div>
     </SettingRow>

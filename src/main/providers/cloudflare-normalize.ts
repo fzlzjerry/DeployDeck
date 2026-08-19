@@ -1,7 +1,6 @@
 import type {
   DeploymentLogEntry,
   DnsRecord,
-  DnsRecordType,
   DnsZone,
   EnvironmentVariable,
   PagesDeploymentDetail,
@@ -12,6 +11,7 @@ import type {
   WorkerScript,
   WorkerVersion,
 } from "@shared/models";
+import { isCloudflareDnsRecordType } from "@shared/dns-records";
 import {
   cloudflarePagesDeploymentUrl,
   cloudflarePagesUrl,
@@ -30,8 +30,6 @@ interface LooseRecord {
 function text(value: unknown): string | undefined {
   return typeof value === "string" && value.length > 0 ? value : undefined;
 }
-
-const DNS_TYPES = new Set<DnsRecordType>(["A", "AAAA", "CNAME", "TXT", "MX", "CAA", "SRV", "NS"]);
 
 export function normalizePagesProject(project: LooseRecord, account: { id: string; name: string }): UnifiedProject {
   const source = (project.source ?? {}) as LooseRecord;
@@ -306,6 +304,7 @@ export function normalizeZone(zone: LooseRecord, account: { id: string; name: st
   const plan = (zone.plan ?? {}) as LooseRecord;
   return {
     id: String(zone.id ?? ""),
+    provider: "cloudflare",
     accountId: account.id,
     accountName: account.name,
     name: String(zone.name ?? ""),
@@ -317,13 +316,16 @@ export function normalizeZone(zone: LooseRecord, account: { id: string; name: st
 
 export function normalizeDnsRecord(record: LooseRecord, zone: { id: string; name: string }): DnsRecord {
   const typeRaw = String(record.type ?? "A").toUpperCase();
-  const type = DNS_TYPES.has(typeRaw as DnsRecordType) ? (typeRaw as DnsRecordType) : "TXT";
+  const type = isCloudflareDnsRecordType(typeRaw) ? typeRaw : "UNKNOWN";
   const data = (record.data ?? {}) as Record<string, string | number | boolean | undefined>;
+  const settings = (record.settings ?? {}) as Record<string, string | number | boolean | undefined>;
   return {
     id: String(record.id ?? ""),
+    provider: "cloudflare",
     zoneId: zone.id,
     zoneName: zone.name,
     type,
+    rawType: type === "UNKNOWN" ? typeRaw : undefined,
     name: String(record.name ?? ""),
     content: String(record.content ?? ""),
     ttl: Number(record.ttl ?? 1),
@@ -331,8 +333,10 @@ export function normalizeDnsRecord(record: LooseRecord, zone: { id: string; name
     proxiable: typeof record.proxiable === "boolean" ? record.proxiable : undefined,
     priority: typeof record.priority === "number" ? record.priority : undefined,
     comment: text(record.comment),
+    tags: Array.isArray(record.tags) ? record.tags.map(String) : [],
     modifiedOn: text(record.modified_on),
     data,
+    settings,
   };
 }
 

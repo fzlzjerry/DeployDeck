@@ -1,6 +1,7 @@
 import * as ContextMenu from "@radix-ui/react-context-menu";
+import * as Popover from "@radix-ui/react-popover";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { RotateCcw, Search } from "lucide-react";
+import { Plus, RotateCcw, Search, SlidersHorizontal } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { UnifiedDeployment } from "@shared/models";
 import { ProviderMark, StatusBadge } from "@/components/common/status-badge";
@@ -32,6 +33,7 @@ export function DeploymentsScreen() {
   const selected = useUiStore((state) => state.selected);
   const inspectorOpen = useUiStore((state) => state.inspectorOpen);
   const closeInspector = useUiStore((state) => state.closeInspector);
+  const openCreate = useUiStore((state) => state.openCreate);
   const searchNonce = useUiStore((state) => state.searchNonce);
   const connection = useConnection();
   const query = useUnifiedDeployments(filters);
@@ -112,52 +114,17 @@ export function DeploymentsScreen() {
               onChange={(event) => setSearch(event.target.value)}
             />
           </div>
-          <SelectControl
-            value={filters.provider ?? "all"}
-            onValueChange={(provider) => setFilters({ provider: provider as never })}
-            ariaLabel="Filter by provider"
-            className="w-36"
-            options={providerOptions}
-          />
-          <SelectControl
-            value={filters.state ?? "all"}
-            onValueChange={(state) => setFilters({ state: state as never })}
-            ariaLabel="Filter by deployment state"
-            className="w-32"
-            options={[
-              { value: "all", label: "All states" },
-              { value: "queued", label: "Queued" },
-              { value: "building", label: "Building" },
-              { value: "ready", label: "Ready" },
-              { value: "failed", label: "Failed" },
-              { value: "canceled", label: "Canceled" },
-            ]}
-          />
-          <SelectControl
-            value={filters.environment ?? "all"}
-            onValueChange={(environment) => setFilters({ environment: environment as never })}
-            ariaLabel="Filter by environment"
-            className="w-44"
-            options={[
-              { value: "all", label: "All environments" },
-              { value: "production", label: "Production" },
-              { value: "preview", label: "Preview" },
-              { value: "development", label: "Development" },
-            ]}
-          />
-          <Input
-            aria-label="Filter by branch"
-            placeholder="Branch"
-            className="w-32"
-            value={filters.branch ?? ""}
-            onChange={(event) => setFilters({ branch: event.target.value || undefined })}
-          />
-          {activeFilterCount > 0 ? (
-            <Button variant="ghost" size="sm" className="text-muted" onClick={resetFilters}>
-              <RotateCcw aria-hidden />
-              Reset {activeFilterCount}
-            </Button>
-          ) : null}
+          <div className="contents max-[1180px]:hidden">
+            <DeploymentFilterControls filters={filters} providerOptions={providerOptions} setFilters={setFilters} />
+            {activeFilterCount > 0 ? <Button variant="ghost" size="sm" className="text-muted" onClick={resetFilters}><RotateCcw aria-hidden /> Reset {activeFilterCount}</Button> : null}
+          </div>
+          <Popover.Root>
+            <Popover.Trigger asChild><Button size="sm" variant="outline" className="min-[1181px]:hidden"><SlidersHorizontal aria-hidden /> Filters{activeFilterCount ? ` · ${activeFilterCount}` : ""}</Button></Popover.Trigger>
+            <Popover.Portal><Popover.Content align="start" sideOffset={6} collisionPadding={8} className="z-[var(--z-dropdown)] w-72 space-y-3 rounded-panel bg-panel p-3 shadow-[var(--shadow-popover)]">
+              <DeploymentFilterControls filters={filters} providerOptions={providerOptions} setFilters={setFilters} stacked />
+              {activeFilterCount > 0 ? <Button variant="ghost" size="sm" className="w-full justify-start text-muted" onClick={resetFilters}><RotateCcw aria-hidden /> Reset {activeFilterCount} filters</Button> : null}
+            </Popover.Content></Popover.Portal>
+          </Popover.Root>
           <div className="ml-auto flex shrink-0 items-center gap-3 text-dense text-muted">
             {query.isFetching && !query.isLoading ? <span>Updating…</span> : null}
             {query.isLoading ? null : (
@@ -165,6 +132,7 @@ export function DeploymentsScreen() {
                 {items.length} {items.length === 1 ? "deployment" : "deployments"}
               </span>
             )}
+            <Button size="sm" onClick={() => openCreate("deployment")}><Plus aria-hidden /> Deploy</Button>
           </div>
         </ScreenToolbar>
         {query.isError ? (
@@ -204,6 +172,22 @@ export function DeploymentsScreen() {
           <DeploymentDetail deployment={selected} />
         </InspectorPanel>
       ) : null}
+    </div>
+  );
+}
+
+function DeploymentFilterControls({ filters, providerOptions, setFilters, stacked = false }: {
+  filters: ReturnType<typeof useUiStore.getState>["filters"];
+  providerOptions: Array<{ value: string; label: string }>;
+  setFilters: (patch: Partial<ReturnType<typeof useUiStore.getState>["filters"]>) => void;
+  stacked?: boolean;
+}) {
+  return (
+    <div className={stacked ? "grid gap-2" : "contents"}>
+      <SelectControl value={filters.provider ?? "all"} onValueChange={(provider) => setFilters({ provider: provider as never })} ariaLabel="Filter by provider" className={stacked ? "w-full" : "w-36"} options={providerOptions} />
+      <SelectControl value={filters.state ?? "all"} onValueChange={(state) => setFilters({ state: state as never })} ariaLabel="Filter by deployment state" className={stacked ? "w-full" : "w-32"} options={[{ value: "all", label: "All states" }, { value: "queued", label: "Queued" }, { value: "building", label: "Building" }, { value: "ready", label: "Ready" }, { value: "failed", label: "Failed" }, { value: "canceled", label: "Canceled" }]} />
+      <SelectControl value={filters.environment ?? "all"} onValueChange={(environment) => setFilters({ environment: environment as never })} ariaLabel="Filter by environment" className={stacked ? "w-full" : "w-44"} options={[{ value: "all", label: "All environments" }, { value: "production", label: "Production" }, { value: "preview", label: "Preview" }, { value: "development", label: "Development" }]} />
+      <Input aria-label="Filter by branch" placeholder="Branch" className={stacked ? "w-full" : "w-32"} value={filters.branch ?? ""} onChange={(event) => setFilters({ branch: event.target.value || undefined })} />
     </div>
   );
 }
@@ -356,7 +340,8 @@ function DeploymentTable({ items }: { items: UnifiedDeployment[] }) {
                       openDeployment(item);
                     }
                   }}
-                  onClick={() => {
+                  onClick={(event) => {
+                    event.currentTarget.focus();
                     setActive(index);
                     openDeployment(item);
                   }}

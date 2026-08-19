@@ -11,6 +11,7 @@ import {
   SelectControl,
   Skeleton,
   SwitchControl,
+  Textarea,
   type SegmentedControlOption,
 } from "@/components/ui/primitives";
 import { ProviderConnectionRow, useProviderConnection } from "@/features/onboarding/provider-connection";
@@ -105,12 +106,27 @@ export function SettingsScreen({ onReplaySetup }: { onReplaySetup?: () => void }
   };
 
   return (
-    <div className="h-full overflow-auto">
-      {/* The screen title and description come from the shell's PageHeader. */}
-      {/* Left-aligned, not centred, so the panels line up with the PageHeader. */}
-      <div className="w-full max-w-3xl px-6 pt-1 pb-14">
+    <div className="h-full overflow-auto scroll-smooth">
+      <div className="flex w-full max-w-6xl items-start gap-6 px-6 pt-1 pb-14">
+        <nav className="sticky top-0 hidden w-40 shrink-0 space-y-1 py-1 min-[1100px]:block" aria-label="Settings sections">
+          {[
+            ["connections", "Connections"],
+            ["general", "General"],
+            ["appearance", "Appearance"],
+            ["uploads", "Deploy & upload"],
+            ["refresh", "Refresh"],
+            ["notifications", "Notifications"],
+            ["about", "Setup & version"],
+          ].map(([id, label]) => (
+            <a key={id} href={`#settings-${id}`} className="block rounded-control px-2.5 py-2 text-dense text-muted hover:bg-surface-2 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]">
+              {label}
+            </a>
+          ))}
+        </nav>
+        <div className="min-w-0 w-full max-w-3xl">
         <div className="space-y-6">
           <SettingsSection
+            id="settings-connections"
             size="sm"
             title="Connections"
             description="Sign-in sessions are encrypted by macOS and stay in the Electron main process."
@@ -120,6 +136,7 @@ export function SettingsScreen({ onReplaySetup }: { onReplaySetup?: () => void }
           </SettingsSection>
 
           <SettingsSection
+            id="settings-general"
             size="sm"
             title="General"
             description="Choose how DeployDeck starts and where each session begins."
@@ -170,6 +187,7 @@ export function SettingsScreen({ onReplaySetup }: { onReplaySetup?: () => void }
           </SettingsSection>
 
           <SettingsSection
+            id="settings-appearance"
             size="sm"
             title="Appearance"
             description="Tune the interface for your desk and the amount of deployment data you scan."
@@ -207,6 +225,41 @@ export function SettingsScreen({ onReplaySetup }: { onReplaySetup?: () => void }
           </SettingsSection>
 
           <SettingsSection
+            id="settings-uploads"
+            size="sm"
+            title="Deploy and upload"
+            description="Defaults for new deployments and main-process file selection."
+          >
+            <SettingRow label="Default deployment target" description="Used by the creation workflow unless you explicitly choose another target.">
+              <SegmentedControl
+                value={current.defaultDeploymentTarget}
+                onValueChange={(defaultDeploymentTarget) => void patch({ defaultDeploymentTarget })}
+                options={[
+                  { value: "preview", label: "Preview" },
+                  { value: "production", label: "Production" },
+                ]}
+                ariaLabel="Default deployment target"
+              />
+            </SettingRow>
+            <SettingRow label="Collapse sidebar" description="Keep the navigation rail compact on wide windows; narrow windows always collapse it.">
+              <SwitchControl
+                checked={current.sidebarCollapsed}
+                onCheckedChange={(sidebarCollapsed) => void patch({ sidebarCollapsed })}
+                ariaLabel="Collapse the sidebar"
+              />
+            </SettingRow>
+            <SettingRow className="items-start" label="Ignored upload paths" description="One path or folder name per line. .gitignore is applied as well.">
+              <Textarea
+                className="w-[min(24rem,42vw)] font-mono text-dense"
+                defaultValue={current.localUploadIgnore.join("\n")}
+                onBlur={(event) => void patch({ localUploadIgnore: event.target.value.split(/\r?\n/).map((item) => item.trim()).filter(Boolean) })}
+                aria-label="Ignored local upload paths"
+              />
+            </SettingRow>
+          </SettingsSection>
+
+          <SettingsSection
+            id="settings-refresh"
             size="sm"
             title="Refresh"
             description="Control how often DeployDeck checks providers while it is running."
@@ -251,6 +304,7 @@ export function SettingsScreen({ onReplaySetup }: { onReplaySetup?: () => void }
           </SettingsSection>
 
           <SettingsSection
+            id="settings-notifications"
             size="sm"
             title="Notifications"
             description="Choose which deployment changes should interrupt you."
@@ -293,6 +347,7 @@ export function SettingsScreen({ onReplaySetup }: { onReplaySetup?: () => void }
           </SettingsSection>
 
           <SettingsSection
+            id="settings-about"
             size="sm"
             title="Setup and version"
             description="Repeat the guided connection flow or check the installed build."
@@ -321,8 +376,8 @@ export function SettingsScreen({ onReplaySetup }: { onReplaySetup?: () => void }
             </SettingRow>
           </SettingsSection>
         </div>
+        </div>
       </div>
     </div>
   );
 }
-

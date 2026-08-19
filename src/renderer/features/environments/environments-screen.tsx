@@ -1,6 +1,7 @@
 import type { EnvironmentVariable } from "@shared/models";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { FileUp } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { EmptyState, ScreenError } from "@/components/common/empty-state";
 import { ScreenToolbar } from "@/components/ui/layout";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
@@ -28,6 +29,10 @@ export function EnvironmentsScreen() {
   const projects = useProjects();
   const client = useQueryClient();
   const ask = useUiStore((state) => state.askConfirm);
+  const setScreen = useUiStore((state) => state.setScreen);
+  const createIntent = useUiStore((state) => state.createResource);
+  const closeCreate = useUiStore((state) => state.closeCreate);
+  const keyInputRef = useRef<HTMLInputElement>(null);
   const [provider, setProvider] = useState<EnvironmentProvider>("vercel");
   const [targetId, setTargetId] = useState("");
   const [env, setEnv] = useState("production");
@@ -37,6 +42,7 @@ export function EnvironmentsScreen() {
   const [branch, setBranch] = useState("");
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState<EnvironmentVariable>();
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const environmentFocus = useUiStore((state) => state.environmentFocus);
 
   useEffect(() => {
@@ -49,9 +55,33 @@ export function EnvironmentsScreen() {
   const cloudflareConnected = Boolean(connection.data?.cloudflare.connected);
   const pagesConnected = cloudflareConnected && (connection.data?.cloudflare.capabilities?.pages ?? true);
   const workersConnected = cloudflareConnected && (connection.data?.cloudflare.capabilities?.workers ?? true);
-  const vercelProjects = projects.data?.vercel ?? [];
-  const pages = projects.data?.pages ?? [];
-  const workers = projects.data?.workers ?? [];
+  const canWrite = provider === "vercel"
+    ? vercelConnected
+    : provider === "cloudflare-pages"
+      ? Boolean(connection.data?.cloudflare.capabilities?.pagesWrite)
+      : Boolean(connection.data?.cloudflare.capabilities?.workersWrite);
+  const vercelProjects = useMemo(() => projects.data?.vercel ?? [], [projects.data?.vercel]);
+  const pages = useMemo(() => projects.data?.pages ?? [], [projects.data?.pages]);
+  const workers = useMemo(() => projects.data?.workers ?? [], [projects.data?.workers]);
+
+  useEffect(() => {
+    if (createIntent !== "environment") return;
+    let nextProvider = provider;
+    let nextTarget = targetId;
+    if (nextProvider === "vercel" && vercelProjects.length > 0) nextTarget ||= vercelProjects[0]!.id;
+    else if (nextProvider === "cloudflare-pages" && pages.length > 0) nextTarget ||= `${pages[0]!.accountId}::${pages[0]!.name}`;
+    else if (nextProvider === "cloudflare-workers" && workers.length > 0) nextTarget ||= `${workers[0]!.accountId}::${workers[0]!.name}`;
+    else if (vercelProjects.length > 0) { nextProvider = "vercel"; nextTarget = vercelProjects[0]!.id; }
+    else if (pages.length > 0) { nextProvider = "cloudflare-pages"; nextTarget = `${pages[0]!.accountId}::${pages[0]!.name}`; }
+    else if (workers.length > 0) { nextProvider = "cloudflare-workers"; nextTarget = `${workers[0]!.accountId}::${workers[0]!.name}`; }
+    setProvider(nextProvider);
+    setTargetId(nextTarget);
+    const timer = window.setTimeout(() => {
+      keyInputRef.current?.focus();
+      closeCreate();
+    }, 100);
+    return () => window.clearTimeout(timer);
+  }, [closeCreate, createIntent, pages, provider, targetId, vercelProjects, workers]);
 
   useEffect(() => {
     if (provider === "vercel" && !vercelConnected && (pagesConnected || workersConnected)) {
@@ -68,6 +98,10 @@ export function EnvironmentsScreen() {
       setTargetId("");
     }
   }, [cloudflareConnected, pagesConnected, provider, vercelConnected, workersConnected]);
+
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [env, provider, targetId]);
 
   const query = useQuery({
     queryKey: ["env-manager", provider, targetId, env],
@@ -227,7 +261,94 @@ export function EnvironmentsScreen() {
     }
   };
 
+  const importVariables = async () => {
+    if (!targetId) return;
+    const file = await window.deployDeck.files.openText({ extensions: ["env", "txt"], title: "Import .env variables" });
+    if (!file) return;
+    const entries = parseDotEnv(file.contents);
+    if (entries.length === 0) {
+      toast.error("No KEY=VALUE entries were found in that file.");
+      return;
+    }
+    const existing = new Set((query.data ?? []).map((item) => item.key));
+    const conflicts = entries.filter(([entryKey]) => existing.has(entryKey));
+    const apply = async () => {
+      setSaving(true);
+      try {
+        for (const [entryKey, entryValue] of entries) {
+          if (provider === "vercel") {
+            await window.deployDeck.vercel.createEnvVar(targetId, {
+              key: entryKey,
+              value: entryValue,
+              targets: [env],
+              type: "encrypted",
+              branch: branch.trim() || undefined,
+            });
+          } else if (provider === "cloudflare-pages") {
+            const [accountId, projectName] = targetId.split("::");
+            await window.deployDeck.cloudflare.upsertPagesEnv({
+              accountId,
+              projectName,
+              environment: env === "preview" ? "preview" : "production",
+              name: entryKey,
+              value: entryValue,
+              secret: false,
+            });
+          } else {
+            const [accountId, workerName] = targetId.split("::");
+            await window.deployDeck.cloudflare.upsertWorkerVar(accountId, workerName, entryKey, entryValue);
+          }
+        }
+        await client.invalidateQueries({ queryKey: ["env-manager"] });
+        toast.success(`Imported ${entries.length} variables`);
+      } catch (error) {
+        toast.error(errorMessage(error));
+      } finally {
+        setSaving(false);
+      }
+    };
+    if (conflicts.length > 0) {
+      ask({
+        title: "Overwrite existing variables?",
+        body: `${conflicts.length} of ${entries.length} imported keys already exist: ${conflicts.slice(0, 5).map(([entryKey]) => entryKey).join(", ")}${conflicts.length > 5 ? "…" : ""}`,
+        actionLabel: "Import and overwrite",
+        intent: "warning",
+        onConfirm: apply,
+      });
+    } else {
+      await apply();
+    }
+  };
+
   const items = query.data ?? [];
+  const allSelected = items.length > 0 && items.every((item) => selectedIds.has(item.id));
+
+  const requestBatchDelete = () => {
+    const selected = items.filter((item) => selectedIds.has(item.id));
+    if (!targetId || selected.length === 0) return;
+    ask({
+      title: "Delete selected variables",
+      body: `${selected.length} variable${selected.length === 1 ? "" : "s"} will be removed from the selected target. Secret values remain unrecoverable.`,
+      actionLabel: "Delete variables",
+      intent: "danger",
+      onConfirm: async () => {
+        for (const item of selected) {
+          if (provider === "vercel") await window.deployDeck.vercel.deleteEnvVar(targetId, item.id);
+          else if (provider === "cloudflare-pages") {
+            const [accountId, name] = targetId.split("::");
+            await window.deployDeck.cloudflare.deletePagesEnv(accountId, name, env === "preview" ? "preview" : "production", item.key);
+          } else {
+            const [accountId, name] = targetId.split("::");
+            if (item.type === "secret") await window.deployDeck.cloudflare.deleteWorkerSecret(accountId, name, item.key);
+            else await window.deployDeck.cloudflare.deleteWorkerVar(accountId, name, item.key);
+          }
+        }
+        setSelectedIds(new Set());
+        await client.invalidateQueries({ queryKey: ["env-manager"] });
+        toast.success(`Deleted ${selected.length} variable${selected.length === 1 ? "" : "s"}`);
+      },
+    });
+  };
 
   return (
     <div className="flex h-full flex-col">
@@ -280,8 +401,24 @@ export function EnvironmentsScreen() {
               {items.length} {items.length === 1 ? "variable" : "variables"}
             </span>
           ) : null}
+          <Button size="sm" variant="secondary" disabled={!targetId || !canWrite} loading={saving} onClick={() => void importVariables()}><FileUp aria-hidden /> Import .env</Button>
         </div>
       </ScreenToolbar>
+
+      {targetId && !canWrite ? (
+        <div className="flex min-h-11 shrink-0 items-center justify-between gap-3 border-b border-line bg-warning-soft px-6 py-2 text-dense text-warning-ink">
+          <span>Variables are read-only because this connection lacks write permission.</span>
+          <Button size="sm" variant="secondary" onClick={() => setScreen("settings")}>Reconnect</Button>
+        </div>
+      ) : null}
+
+      {selectedIds.size > 0 ? (
+        <div className="flex min-h-11 shrink-0 items-center gap-3 border-b border-line bg-panel-header px-6 py-2">
+          <span className="text-dense font-medium text-ink">{selectedIds.size} selected</span>
+          <Button size="sm" variant="ghost" disabled={!canWrite} className="ml-auto text-failed-ink hover:bg-failed-soft" onClick={requestBatchDelete}>Delete selected</Button>
+          <Button size="sm" variant="ghost" onClick={() => setSelectedIds(new Set())}>Clear</Button>
+        </div>
+      ) : null}
 
       {!targetId ? (
         <EmptyState
@@ -318,6 +455,7 @@ export function EnvironmentsScreen() {
                   <div className="grid gap-1.5">
                     <Label htmlFor="environment-key">Name</Label>
                     <Input
+                      ref={keyInputRef}
                       id="environment-key"
                       placeholder="VARIABLE_NAME"
                       className="font-mono"
@@ -355,7 +493,7 @@ export function EnvironmentsScreen() {
                   </Label>
                   <Button
                     loading={saving}
-                    disabled={!key.trim() || !value}
+                    disabled={!canWrite || !key.trim() || !value}
                     onClick={() => void saveVariable()}
                   >
                     {editing ? "Update variable" : "Save variable"}
@@ -369,7 +507,7 @@ export function EnvironmentsScreen() {
               {query.isError ? (
                 <ScreenError size="inline" message={errorMessage(query.error)} onRetry={() => void query.refetch()} />
               ) : query.isLoading ? (
-                <TableSkeleton columns={5} label="Loading variables" />
+                <TableSkeleton columns={7} label="Loading variables" />
               ) : items.length === 0 ? (
                 <EmptyState
                   size="inline"
@@ -380,6 +518,7 @@ export function EnvironmentsScreen() {
                 <div className="overflow-auto">
               <table className="data-table" aria-label="Environment variables">
                 <colgroup>
+                  <col style={{ width: 48 }} />
                   <col style={{ width: 220 }} />
                   <col style={{ width: 116 }} />
                   <col style={{ width: 200 }} />
@@ -389,6 +528,7 @@ export function EnvironmentsScreen() {
                 </colgroup>
                 <thead>
                   <tr>
+                    <th scope="col"><CheckboxControl checked={allSelected} onCheckedChange={() => setSelectedIds(allSelected ? new Set() : new Set(items.map((item) => item.id)))} ariaLabel="Select all environment variables" /></th>
                     <th scope="col">Name</th>
                     <th scope="col">Type</th>
                     <th scope="col">Target</th>
@@ -402,6 +542,8 @@ export function EnvironmentsScreen() {
                     <EnvTableRow
                       key={item.id}
                       item={item}
+                      selected={selectedIds.has(item.id)}
+                      onToggle={() => setSelectedIds((current) => current.has(item.id) ? withoutId(current, item.id) : withId(current, item.id))}
                       editing={editing?.id === item.id}
                       onEdit={() => void beginEdit(item)}
                       onReveal={
@@ -442,6 +584,7 @@ export function EnvironmentsScreen() {
                           },
                         })
                       }
+                      canWrite={canWrite}
                     />
                   ))}
                 </tbody>
@@ -466,15 +609,21 @@ const ENV_TYPE_VARIANT: Record<string, NonNullable<BadgeProps["variant"]>> = {
 function EnvTableRow({
   item,
   editing,
+  selected,
+  onToggle,
   onEdit,
   onReveal,
   onDelete,
+  canWrite,
 }: {
-  item: { key: string; type: string; targets: string[]; branch?: string; updatedAt?: string; value?: string };
+  item: { id: string; key: string; type: string; targets: string[]; branch?: string; updatedAt?: string; value?: string };
   editing?: boolean;
+  selected: boolean;
+  onToggle: () => void;
   onEdit: () => void;
   onReveal?: () => Promise<string>;
   onDelete: () => void;
+  canWrite: boolean;
 }) {
   const [revealedValue, setRevealedValue] = useState<string>();
   const [revealing, setRevealing] = useState(false);
@@ -500,6 +649,7 @@ function EnvTableRow({
 
   return (
     <tr>
+      <td><CheckboxControl checked={selected} onCheckedChange={onToggle} ariaLabel={`Select ${item.key}`} /></td>
       <td className="truncate font-mono font-medium">{item.key}</td>
       <td>
         <Badge variant={ENV_TYPE_VARIANT[item.type] ?? "neutral"} className="capitalize">
@@ -526,6 +676,7 @@ function EnvTableRow({
           <Button
             size="sm"
             variant="ghost"
+            disabled={!canWrite}
             aria-pressed={editing || undefined}
             aria-label={`Edit ${item.key}`}
             onClick={onEdit}
@@ -547,6 +698,7 @@ function EnvTableRow({
             size="sm"
             variant="ghost"
             className="text-failed-ink hover:bg-failed-soft"
+            disabled={!canWrite}
             aria-label={`Delete ${item.key}`}
             onClick={onDelete}
           >
@@ -556,4 +708,35 @@ function EnvTableRow({
       </td>
     </tr>
   );
+}
+
+function parseDotEnv(contents: string): Array<[string, string]> {
+  const values = new Map<string, string>();
+  for (const rawLine of contents.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith("#")) continue;
+    const normalized = line.startsWith("export ") ? line.slice(7).trim() : line;
+    const separator = normalized.indexOf("=");
+    if (separator <= 0) continue;
+    const key = normalized.slice(0, separator).trim();
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) continue;
+    let value = normalized.slice(separator + 1).trim();
+    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+      value = value.slice(1, -1);
+    }
+    values.set(key, value.replace(/\\n/g, "\n"));
+  }
+  return [...values.entries()];
+}
+
+function withId(source: Set<string>, id: string): Set<string> {
+  const next = new Set(source);
+  next.add(id);
+  return next;
+}
+
+function withoutId(source: Set<string>, id: string): Set<string> {
+  const next = new Set(source);
+  next.delete(id);
+  return next;
 }

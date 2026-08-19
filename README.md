@@ -4,10 +4,10 @@ DeployDeck is a native-feeling macOS desktop console for everyday Vercel and Clo
 
 It covers:
 
-- Vercel projects, deployments, build logs, runtime logs, domains, and environment variables
-- Cloudflare Pages projects, deployments, build logs, domains, and environment variables
-- Cloudflare Workers scripts, versions, deployments, live tail, routes, custom domains, variables, and secrets
-- Cloudflare DNS zones and common record types
+- Vercel project creation and configuration, Git/local deployments, pause/resume/delete, logs, domains, Vercel DNS, and environment variables
+- Cloudflare Pages Git or Direct Upload projects, build settings/cache, deployments, domains, and environment variables
+- Cloudflare Workers upload/download, versions, traffic deployments, live tail, routes, custom domains, workers.dev, Cron triggers, variables, and secrets
+- Cloudflare DNS zones with all current API record types, structured editing, batch changes, and BIND import/export
 - A unified deployments table, command palette, menu bar status, and native notifications
 
 ## Requirements
@@ -28,6 +28,10 @@ npm install
 npm start
 npm run typecheck
 npm run lint
+npm test
+npm run test:ui
+npm run test:all
+npm run contrast
 ```
 
 ## Packaging
@@ -88,6 +92,7 @@ Recommended Cloudflare permissions (OAuth scopes and API tokens):
 - Workers / Workers Scripts → Edit (`workers-scripts.edit`)
 - Workers Routes → Edit (`workers-routes.write`)
 - Workers Tail → Read (`workers-tail.read`)
+- Workers Builds Configuration → Edit (required only for Git-triggered Worker builds)
 - Zone → Read (`zone.read`)
 - DNS → Edit (`dns.write`)
 
@@ -96,6 +101,13 @@ If a feature is denied, the provider error is shown in place. You do not need ev
 ## Credential storage
 
 OAuth access and refresh tokens, and pasted API tokens, are encrypted with Electron `safeStorage` and stored only as ciphertext in `electron-store` under your user data directory. They are decrypted in the Electron main process for API calls. The renderer never receives a token. Existing pasted tokens keep working until you reconnect.
+
+## Git and local deployments
+
+- Vercel local deployment selects a source folder. DeployDeck applies `.gitignore` plus the upload exclusions in Settings, hashes files in the main process, uploads missing blobs, and then creates the deployment.
+- Pages Direct Upload selects an already-built output folder. DeployDeck uploads the content-addressed assets and manifest; it does not run arbitrary build commands. Cloudflare does not allow a Direct Upload project to be converted to Git integration later.
+- Worker local deployment selects a TypeScript/JavaScript entry file, a project folder with a Wrangler/common entrypoint, or a prebuilt module. Source entries are bundled with the pinned local esbuild dependency before upload; prebuilt bundles are uploaded directly.
+- The renderer receives only an expiring source handle and summary. Tokens and filesystem reads stay in the Electron main process, and every long operation can be canceled.
 
 ## Known provider limits
 

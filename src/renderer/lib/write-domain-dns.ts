@@ -1,4 +1,5 @@
 import type { DnsZone, UnifiedDomain } from "@shared/models";
+import { isSupportedDnsRecordType } from "@shared/dns-records";
 import { domainNeedsDns, duplicateDnsError, matchDnsZone } from "@shared/domain-dns";
 import { errorMessage } from "@/lib/format";
 
@@ -10,7 +11,10 @@ export async function writeDomainVerification(
   if (!domainNeedsDns(domain) || records.length === 0) {
     throw new Error("This domain has no verification records to write.");
   }
-  const zone = matchDnsZone(domain.name, zones) ?? records.map((record) => matchDnsZone(record.name, zones)).find(Boolean);
+  const cloudflareZones = zones.filter((item) => item.provider === "cloudflare");
+  const zone =
+    matchDnsZone(domain.name, cloudflareZones) ??
+    records.map((record) => matchDnsZone(record.name, cloudflareZones)).find(Boolean);
   if (!zone) {
     throw new Error("No matching Cloudflare zone is connected for this hostname.");
   }
@@ -19,8 +23,13 @@ export async function writeDomainVerification(
   let skipped = 0;
   const failures: string[] = [];
   for (const record of records) {
+    if (!isSupportedDnsRecordType(record.type)) {
+      failures.push(`${record.type} ${record.name}: unsupported verification record type`);
+      continue;
+    }
     try {
       await window.deployDeck.cloudflare.createDnsRecord({
+        provider: "cloudflare",
         zoneId: zone.id,
         type: record.type,
         name: record.name,

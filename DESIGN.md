@@ -302,9 +302,20 @@ One CSS grid for the whole log, not a flex row per line, so the timestamp and le
 Encode kind with an icon in a muted tile, not with colour. Six status colours would carry the same information at the cost of the one-lamp budget. Group by calendar day with one panel per day; `dayKey` and `dayLabel` in `lib/format` own the bucketing.
 
 ### Navigation
-- 240px sidebar rail
+- 232px sidebar rail, user-collapsible to a 64px icon rail; windows at or below 1180px collapse automatically
 - Active item is a filled pill with a sliding indicator
-- The titlebar is a 48px drag region holding only the command palette entry. The screen name lives below it in `PageHeader`, not in the bar.
+- The titlebar is a 48px drag region holding the global New menu and command palette entry. The screen name lives below it in `PageHeader`, not in the bar.
+- Connected-account controls move into a bottom popover while the rail is collapsed; no provider context disappears.
+
+### Inspectors and creation
+- `InspectorPanel` is inline above 1180px and becomes a right-side overlay Sheet below it. It must never reduce a table to an unusable sliver.
+- Every inspector closes with Escape, keeps an explicit close button, and returns focus through its triggering flow.
+- Multi-step project/deployment creation is a dedicated workspace surface, not a modal. The sequence is Resource → Source & build → Environment → Review.
+
+### DNS forms
+- Record types come from the shared provider-aware registry. Cloudflare exposes 21 current API types; Vercel exposes only its supported subset.
+- Advanced records use structured fields and a canonical-name preview. Unknown future types preserve their raw provider type and remain read-only.
+- Batch selection is the only time DNS rows gain checkboxes; bulk TTL, proxy, delete, import, and export remain in one action rail.
 
 ### Stacking
 Use the semantic `--z-*` scale (`sticky`, `panel-overlay`, `dropdown`, `overlay`, `modal`, `toast`, `tooltip`) as `z-[var(--z-dropdown)]`. Never a bare `z-50`.
@@ -313,7 +324,7 @@ Use the semantic `--z-*` scale (`sticky`, `panel-overlay`, `dropdown`, `overlay`
 
 Two engines, split by surface. Do not mix them within one feature.
 
-- **Workspace — `motion`.** Screen crossfades, the sidebar pill `layoutId`, the segmented control indicator. State transitions of 140-220ms. Motion conveys state and nothing else; no orchestrated page loads.
+- **Workspace — `motion`.** The sidebar pill `layoutId`, segmented controls, sheets, and state transitions use 140-220ms motion. Screen content swaps immediately so a hidden Electron window cannot pause an exit transition and leave two pages stacked.
 - **First run — GSAP.** The one choreographed surface. `useGSAP` from `@gsap/react` handles cleanup; `useStepFlow` in `features/onboarding/setup-steps.tsx` owns the step timeline.
 
 **First-run choreography**

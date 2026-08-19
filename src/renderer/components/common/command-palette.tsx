@@ -9,6 +9,7 @@ import {
   Globe2,
   History,
   MonitorCog,
+  Plus,
   RotateCcw,
   Rocket,
   Search,
@@ -20,7 +21,7 @@ import { toast } from "sonner";
 import type { Screen, UnifiedDeployment } from "@shared/models";
 import { Kbd } from "@/components/ui/primitives";
 import { useConnection } from "@/hooks/use-connection";
-import { useProjects, useUnifiedDeployments, useZones } from "@/hooks/use-data";
+import { useDnsZones, useProjects, useUnifiedDeployments } from "@/hooks/use-data";
 import { copyText, errorMessage } from "@/lib/format";
 import { useUiStore } from "@/stores/ui-store";
 
@@ -42,11 +43,12 @@ export function CommandPalette() {
   const openDeployment = useUiStore((state) => state.openDeployment);
   const openProject = useUiStore((state) => state.openProject);
   const openZone = useUiStore((state) => state.openZone);
+  const openCreate = useUiStore((state) => state.openCreate);
   const ask = useUiStore((state) => state.askConfirm);
   const connection = useConnection();
   const projects = useProjects();
   const deployments = useUnifiedDeployments({ provider: "all" });
-  const zones = useZones();
+  const zones = useDnsZones();
   const queryClient = useQueryClient();
   const items = deployments.data?.pages.flatMap((page) => page.items) ?? [];
   const listedProjects = [...(projects.data?.vercel ?? []), ...(projects.data?.pages ?? [])];
@@ -116,6 +118,15 @@ export function CommandPalette() {
                     </Item>
                   );
                 })}
+              </Command.Group>
+              <Command.Group heading="Create" className="command-group">
+                <Item icon={<Plus />} detail="Vercel" onSelect={() => { openCreate("vercel-project"); close(); }}>New Vercel project</Item>
+                <Item icon={<Plus />} detail="Cloudflare Pages" onSelect={() => { openCreate("pages-project"); close(); }}>New Pages project</Item>
+                <Item icon={<Plus />} detail="Cloudflare Workers" onSelect={() => { openCreate("worker"); close(); }}>New Worker</Item>
+                <Item icon={<Rocket />} onSelect={() => { openCreate("deployment"); close(); }}>New deployment</Item>
+                <Item icon={<Waypoints />} onSelect={() => { setScreen("dns"); openCreate("dns-record"); close(); }}>New DNS record</Item>
+                <Item icon={<Globe2 />} onSelect={() => { setScreen("domains"); openCreate("domain"); close(); }}>Add domain</Item>
+                <Item icon={<MonitorCog />} onSelect={() => { setScreen("environments"); openCreate("environment"); close(); }}>Add environment variables</Item>
               </Command.Group>
               <Command.Group heading="Workspace" className="command-group">
                 <Item icon={<MonitorCog />} onSelect={() => { void window.deployDeck.prefs.set({ theme: "system" }); close(); }}>
@@ -251,7 +262,7 @@ export function CommandPalette() {
                 <Command.Group heading="DNS zones" className="command-group">
                   {(zones.data ?? []).slice(0, 10).map((zone) => (
                     <Item
-                      key={zone.id}
+                      key={`${zone.provider}:${zone.id}`}
                       icon={<Waypoints />}
                       onSelect={() => {
                         openZone(zone.id);

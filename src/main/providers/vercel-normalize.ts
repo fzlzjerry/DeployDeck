@@ -1,5 +1,7 @@
 import type {
   DeploymentLogEntry,
+  DnsRecord,
+  DnsZone,
   EnvironmentVariable,
   EnvVarType,
   UnifiedDeployment,
@@ -7,6 +9,7 @@ import type {
   UnifiedProject,
   VercelDeploymentDetail,
 } from "@shared/models";
+import { isVercelDnsRecordType } from "@shared/dns-records";
 import { vercelVerificationRecords } from "@shared/domain-dns";
 import { gitRepositoryUrl, httpsUrl, vercelDeploymentUrl, vercelProjectUrl } from "@shared/provider-types";
 import { redactJson } from "@shared/redact";
@@ -53,6 +56,7 @@ export function normalizeVercelProject(
     framework: text(project.framework),
     productionBranch: text(link.productionBranch) ?? text(project.defaultBranch),
     rootDirectory: text(project.rootDirectory),
+    installCommand: text((project.installCommand as string | null) ?? undefined),
     buildCommand: text((project.buildCommand as string | null) ?? undefined),
     outputDirectory: text((project.outputDirectory as string | null) ?? undefined),
     repository: repo,
@@ -64,6 +68,7 @@ export function normalizeVercelProject(
     latestDeploymentAt: latest?.created ? new Date(Number(latest.created)).toISOString() : undefined,
     updatedAt: project.updatedAt ? new Date(Number(project.updatedAt)).toISOString() : new Date().toISOString(),
     dashboardUrl: vercelProjectUrl(teamSlug, String(project.name ?? project.id)),
+    paused: Boolean(project.paused),
   };
 }
 
@@ -157,6 +162,8 @@ export function normalizeVercelDomain(
       : undefined,
     apex: Boolean(domain.apexName && domain.apexName === domain.name),
     redirectTo: text(domain.redirect),
+    gitBranch: text(domain.gitBranch),
+    customEnvironmentId: text(domain.customEnvironmentId),
     createdAt: domain.createdAt ? new Date(Number(domain.createdAt)).toISOString() : undefined,
     verificationRecords: vercelVerificationRecords(
       Array.isArray(domain.verification)
@@ -184,6 +191,55 @@ export function normalizeVercelEnv(env: LooseRecord, project: { id: string; name
     updatedAt: env.updatedAt ? new Date(Number(env.updatedAt)).toISOString() : undefined,
     valueMasked: true,
     value: undefined,
+  };
+}
+
+export function normalizeVercelDnsZone(domain: LooseRecord, account: { id: string; name: string }): DnsZone {
+  const name = String(domain.name ?? domain.domain ?? "");
+  return {
+    id: name,
+    provider: "vercel",
+    accountId: account.id,
+    accountName: account.name,
+    name,
+    status: domain.verified ? "active" : text(domain.serviceType) ?? "pending",
+    planName: "Vercel DNS",
+    nameServers: Array.isArray(domain.nameservers)
+      ? (domain.nameservers as unknown[]).filter((item): item is string => typeof item === "string")
+      : [],
+  };
+}
+
+export function normalizeVercelDnsRecord(
+  record: LooseRecord,
+  zone: { id: string; name: string },
+): DnsRecord {
+  const typeRaw = String(record.type ?? "UNKNOWN").toUpperCase();
+  const type = isVercelDnsRecordType(typeRaw) ? typeRaw : "UNKNOWN";
+  const created = num(record.updated) ?? num(record.updatedAt) ?? num(record.created) ?? num(record.createdAt);
+  return {
+    id: String(record.id ?? record.uid ?? `${typeRaw}:${record.name ?? ""}:${record.value ?? ""}`),
+    provider: "vercel",
+    zoneId: zone.id,
+    zoneName: zone.name,
+    type,
+    rawType: type === "UNKNOWN" ? typeRaw : undefined,
+    name: String(record.name ?? "@"),
+    content: String(record.value ?? record.content ?? ""),
+    ttl: Number(record.ttl ?? 60),
+    priority: num(record.priority),
+    comment: text(record.comment),
+    tags: [],
+    modifiedOn: created ? new Date(created).toISOString() : undefined,
+    data: {
+      priority: num(record.priority),
+      weight: num(record.weight),
+      port: num(record.port),
+      target: text(record.target),
+      flags: num(record.flags),
+      tag: text(record.tag),
+      value: text(record.value),
+    },
   };
 }
 

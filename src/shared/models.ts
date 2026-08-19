@@ -60,6 +60,7 @@ export interface UnifiedProject {
   framework?: string;
   productionBranch?: string;
   rootDirectory?: string;
+  installCommand?: string;
   buildCommand?: string;
   outputDirectory?: string;
   repository?: string;
@@ -71,6 +72,7 @@ export interface UnifiedProject {
   latestDeploymentAt?: string;
   updatedAt: string;
   dashboardUrl: string;
+  paused?: boolean;
 }
 
 export type LogLevel = "trace" | "debug" | "info" | "warn" | "error" | "fatal" | "unknown";
@@ -106,22 +108,61 @@ export interface UnifiedDomain {
   verificationStatus?: string;
   apex?: boolean;
   redirectTo?: string;
+  gitBranch?: string;
+  customEnvironmentId?: string;
   createdAt?: string;
   verificationRecords: DomainVerificationRecord[];
 }
 
-export type DnsRecordType =
+export type CloudflareDnsRecordType =
   | "A"
   | "AAAA"
   | "CNAME"
-  | "TXT"
   | "MX"
+  | "NS"
+  | "OPENPGPKEY"
+  | "PTR"
+  | "TXT"
   | "CAA"
+  | "CERT"
+  | "DNSKEY"
+  | "DS"
+  | "HTTPS"
+  | "LOC"
+  | "NAPTR"
+  | "SMIMEA"
   | "SRV"
-  | "NS";
+  | "SSHFP"
+  | "SVCB"
+  | "TLSA"
+  | "URI";
+
+export type VercelDnsRecordType =
+  | "A"
+  | "AAAA"
+  | "ALIAS"
+  | "CAA"
+  | "CNAME"
+  | "HTTPS"
+  | "MX"
+  | "NS"
+  | "SRV"
+  | "TXT";
+
+export type SupportedDnsRecordType = CloudflareDnsRecordType | VercelDnsRecordType;
+
+/**
+ * Provider APIs occasionally add record types before the desktop app updates.
+ * Preserve those rows as UNKNOWN + rawType instead of silently relabelling them
+ * as TXT, which could make a subsequent edit destructive.
+ */
+export type DnsRecordType = SupportedDnsRecordType | "UNKNOWN";
+
+export type DnsProvider = "cloudflare" | "vercel";
 
 export interface DnsZone {
   id: string;
+  provider: DnsProvider;
   accountId: string;
   accountName: string;
   name: string;
@@ -132,9 +173,11 @@ export interface DnsZone {
 
 export interface DnsRecord {
   id: string;
+  provider: DnsProvider;
   zoneId: string;
   zoneName: string;
   type: DnsRecordType;
+  rawType?: string;
   name: string;
   content: string;
   ttl: number;
@@ -142,8 +185,108 @@ export interface DnsRecord {
   proxiable?: boolean;
   priority?: number;
   comment?: string;
+  tags: string[];
   modifiedOn?: string;
   data?: Record<string, string | number | boolean | undefined>;
+  settings?: Record<string, string | number | boolean | undefined>;
+}
+
+export type ProjectSourceKind = "git" | "local" | "direct";
+
+export type CreateResourceKind =
+  | "vercel-project"
+  | "pages-project"
+  | "worker"
+  | "deployment"
+  | "domain"
+  | "dns-record"
+  | "environment";
+
+export interface GitProjectSource {
+  kind: "git";
+  provider: "github" | "gitlab" | "bitbucket" | "azure-devops";
+  repository: string;
+  branch: string;
+}
+
+export interface LocalProjectSource {
+  kind: "local" | "direct";
+  sourceId: string;
+}
+
+export type DeploymentSource =
+  | (GitProjectSource & { ref?: string; commitSha?: string })
+  | LocalProjectSource;
+
+export interface ProjectCreateInput {
+  provider: Provider;
+  accountId?: string;
+  name: string;
+  source: GitProjectSource | LocalProjectSource;
+  productionBranch: string;
+  framework?: string;
+  rootDirectory?: string;
+  installCommand?: string;
+  buildCommand?: string;
+  outputDirectory?: string;
+  compatibilityDate?: string;
+  compatibilityFlags?: string[];
+}
+
+export interface ProjectPatchInput {
+  name?: string;
+  productionBranch?: string;
+  framework?: string;
+  rootDirectory?: string;
+  installCommand?: string;
+  buildCommand?: string;
+  outputDirectory?: string;
+  buildCaching?: boolean;
+  previewDeployments?: "all" | "none" | "custom";
+  compatibilityDate?: string;
+  compatibilityFlags?: string[];
+  observability?: boolean;
+}
+
+export interface LocalSourceHandle {
+  id: string;
+  kind: "source" | "pages-output" | "worker-entry" | "worker-project" | "worker-bundle";
+  name: string;
+  fileCount: number;
+  totalBytes: number;
+  ignoredCount: number;
+  expiresAt: string;
+  detected?: {
+    framework?: string;
+    entrypoint?: string;
+    outputDirectory?: string;
+    repository?: string;
+  };
+  warnings: string[];
+}
+
+export interface OperationProgress {
+  operationId: string;
+  phase: "preparing" | "hashing" | "uploading" | "creating" | "verifying" | "complete" | "canceled" | "failed";
+  label: string;
+  completed: number;
+  total: number;
+  bytesCompleted?: number;
+  bytesTotal?: number;
+}
+
+export interface OperationResult {
+  operationId: string;
+  provider: Provider | "cloudflare" | "vercel";
+  resourceKind: "project" | "deployment" | "worker" | "dns" | "domain" | "environment";
+  resourceId?: string;
+  resourceName?: string;
+  dashboardUrl?: string;
+}
+
+export interface WorkerSchedule {
+  cron: string;
+  createdOn?: string;
 }
 
 export type EnvVarType = "plain" | "encrypted" | "secret" | "sensitive" | "unknown";
@@ -224,6 +367,12 @@ export interface EnvironmentFocus {
 }
 
 export type ActivityKind =
+  | "project-created"
+  | "project-updated"
+  | "project-paused"
+  | "project-resumed"
+  | "project-deleted"
+  | "deployment-created"
   | "deployment-retried"
   | "deployment-rolled-back"
   | "deployment-canceled"
@@ -238,6 +387,10 @@ export type ActivityKind =
   | "env-variable-changed"
   | "env-variable-deleted"
   | "worker-version-deployed"
+  | "worker-created"
+  | "worker-updated"
+  | "worker-deleted"
+  | "worker-schedules-updated"
   | "worker-secret-changed"
   | "connection-updated";
 
@@ -278,6 +431,7 @@ export interface ConnectionStatus {
 }
 
 export interface AppPreferences {
+  schemaVersion: 2;
   theme: ThemePreference;
   density: DensityPreference;
   defaultScreen: Screen;
@@ -297,6 +451,9 @@ export interface AppPreferences {
   notifyRollback: boolean;
   vercelTeamId: string | null;
   cloudflareAccountId: string | null;
+  sidebarCollapsed: boolean;
+  defaultDeploymentTarget: "preview" | "production";
+  localUploadIgnore: string[];
   setupComplete: boolean;
 }
 
@@ -358,6 +515,7 @@ export interface BuildStage {
 }
 
 export const DEFAULT_PREFERENCES: AppPreferences = {
+  schemaVersion: 2,
   theme: "system",
   density: "compact",
   defaultScreen: "overview",
@@ -377,5 +535,19 @@ export const DEFAULT_PREFERENCES: AppPreferences = {
   notifyRollback: true,
   vercelTeamId: null,
   cloudflareAccountId: null,
+  sidebarCollapsed: false,
+  defaultDeploymentTarget: "preview",
+  localUploadIgnore: [
+    ".git",
+    "node_modules",
+    ".next",
+    ".turbo",
+    ".vercel",
+    ".wrangler",
+    ".DS_Store",
+    ".env",
+    ".env.local",
+    ".env.*.local",
+  ],
   setupComplete: false,
 };

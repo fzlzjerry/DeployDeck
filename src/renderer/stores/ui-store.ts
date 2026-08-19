@@ -1,5 +1,12 @@
 import { create } from "zustand";
-import type { DeploymentFilters, EnvironmentFocus, ProjectFocus, Screen, UnifiedDeployment } from "@shared/models";
+import type {
+  CreateResourceKind,
+  DeploymentFilters,
+  EnvironmentFocus,
+  ProjectFocus,
+  Screen,
+  UnifiedDeployment,
+} from "@shared/models";
 
 interface UiState {
   screen: Screen;
@@ -11,6 +18,7 @@ interface UiState {
   projectFocus?: ProjectFocus;
   zoneFocus?: string;
   environmentFocus?: EnvironmentFocus;
+  createResource?: CreateResourceKind;
   confirm?: {
     title: string;
     body: string;
@@ -26,6 +34,8 @@ interface UiState {
   openProject: (focus: ProjectFocus) => void;
   openZone: (zoneId: string) => void;
   openEnvironment: (focus: EnvironmentFocus) => void;
+  openCreate: (kind: CreateResourceKind) => void;
+  closeCreate: () => void;
   openSelected: () => void;
   closeInspector: () => void;
   askConfirm: (confirm: NonNullable<UiState["confirm"]>) => void;
@@ -46,6 +56,8 @@ export const useUiStore = create<UiState>((set) => ({
   openProject: (projectFocus) => set({ projectFocus, screen: "projects" }),
   openZone: (zoneFocus) => set({ zoneFocus, screen: "dns" }),
   openEnvironment: (environmentFocus) => set({ environmentFocus, screen: "environments" }),
+  openCreate: (createResource) => set({ createResource }),
+  closeCreate: () => set({ createResource: undefined }),
   openSelected: () =>
     set((state) => {
       if (state.selected) return { screen: "deployments", inspectorOpen: true };

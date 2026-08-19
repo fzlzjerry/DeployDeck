@@ -7,11 +7,13 @@ import { AppShell } from "@/components/app-shell/app-shell";
 import { CommandPalette } from "@/components/common/command-palette";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import { Logo } from "@/components/common/logo";
+import { OperationStatus } from "@/components/common/operation-status";
 import { ActivityScreen } from "@/features/activity/activity-screen";
 import { DeploymentsScreen } from "@/features/deployments/deployments-screen";
 import { DnsScreen } from "@/features/dns/dns-screen";
 import { DomainsScreen } from "@/features/domains/domains-screen";
 import { EnvironmentsScreen } from "@/features/environments/environments-screen";
+import { CreateResourceFlow } from "@/features/create/create-resource-flow";
 import { CompactConnect, SetupGuide } from "@/features/onboarding/setup-guide";
 import { OverviewScreen } from "@/features/overview/overview-screen";
 import { ProjectsScreen } from "@/features/projects/projects-screen";
@@ -26,6 +28,7 @@ export function App() {
   const prefs = usePrefs();
   const screen = useUiStore((state) => state.screen);
   const setScreen = useUiStore((state) => state.setScreen);
+  const createResource = useUiStore((state) => state.createResource);
   const queryClient = useQueryClient();
   const reduce = useReducedMotion();
   const [offline, setOffline] = useState(!navigator.onLine);
@@ -123,8 +126,12 @@ export function App() {
           ) : null}
         </motion.div>
       </AnimatePresence>
+      {createResource && ["vercel-project", "pages-project", "worker", "deployment"].includes(createResource) ? (
+        <CreateResourceFlow kind={createResource} />
+      ) : null}
       <CommandPalette />
       <ConfirmDialog />
+      <OperationStatus />
       <Toaster
         className="dd-toaster"
         position="bottom-right"

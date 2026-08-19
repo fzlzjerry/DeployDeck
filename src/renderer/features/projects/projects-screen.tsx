@@ -1,7 +1,11 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ExternalLink, Search } from "lucide-react";
+import * as Popover from "@radix-ui/react-popover";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm } from "react-hook-form";
+import { z } from "zod";
+import { Download, ExternalLink, Pause, Play, Search, SlidersHorizontal, Trash2, Upload } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
-import type { EnvironmentVariable, UnifiedProject, WorkerScript } from "@shared/models";
+import type { EnvironmentVariable, LocalSourceHandle, UnifiedProject, WorkerScript } from "@shared/models";
 import { EmptyState, ScreenError } from "@/components/common/empty-state";
 import { DomainVerification } from "@/components/domains/domain-verification";
 import { WorkerTailPanel } from "@/components/logs/worker-tail";
@@ -13,7 +17,9 @@ import {
   Input,
   SelectControl,
   Skeleton,
+  SwitchControl,
   TableSkeleton,
+  Textarea,
   Tabs,
   TabsContent,
   TabsList,
@@ -48,6 +54,19 @@ const PROVIDER_OPTIONS = [
   { value: "cloudflare-pages", label: "Cloudflare Pages" },
   { value: "cloudflare-workers", label: "Cloudflare Workers" },
 ] as const;
+
+const projectSettingsSchema = z.object({
+  name: z.string().trim().min(1, "Project name is required."),
+  productionBranch: z.string(),
+  framework: z.string(),
+  rootDirectory: z.string(),
+  installCommand: z.string(),
+  buildCommand: z.string(),
+  outputDirectory: z.string(),
+  buildCaching: z.boolean(),
+});
+
+type ProjectSettingsValues = z.infer<typeof projectSettingsSchema>;
 
 export function ProjectsScreen() {
   const connection = useConnection();
@@ -151,18 +170,17 @@ export function ProjectsScreen() {
               onChange={(event) => setQuery(event.target.value)}
             />
           </div>
-          <SelectControl
-            ariaLabel="Filter by provider"
-            className="w-44"
-            value={provider}
-            onValueChange={(value) => setProvider(value as ProviderFilter)}
-            options={providerOptions}
-          />
-          {hasFilters ? (
-            <Button variant="ghost" size="sm" className="text-muted" onClick={clearFilters}>
-              Reset filters
-            </Button>
-          ) : null}
+          <div className="contents max-[1180px]:hidden">
+            <SelectControl ariaLabel="Filter by provider" className="w-44" value={provider} onValueChange={(value) => setProvider(value as ProviderFilter)} options={providerOptions} />
+            {hasFilters ? <Button variant="ghost" size="sm" className="text-muted" onClick={clearFilters}>Reset filters</Button> : null}
+          </div>
+          <Popover.Root>
+            <Popover.Trigger asChild><Button size="sm" variant="outline" className="min-[1181px]:hidden"><SlidersHorizontal aria-hidden /> Filters{hasFilters ? " · active" : ""}</Button></Popover.Trigger>
+            <Popover.Portal><Popover.Content align="start" sideOffset={6} collisionPadding={8} className="z-[var(--z-dropdown)] w-64 space-y-3 rounded-panel bg-panel p-3 shadow-[var(--shadow-popover)]">
+              <SelectControl ariaLabel="Filter by provider" className="w-full" value={provider} onValueChange={(value) => setProvider(value as ProviderFilter)} options={providerOptions} />
+              {hasFilters ? <Button variant="ghost" size="sm" className="w-full justify-start text-muted" onClick={clearFilters}>Reset filters</Button> : null}
+            </Popover.Content></Popover.Portal>
+          </Popover.Root>
           <span className="ml-auto text-dense text-muted tabular" aria-live="polite">
             {projects.isFetching && !projects.isLoading ? "Updating…" : `${entries.length} shown`}
           </span>
@@ -274,7 +292,8 @@ function ProjectsTable({
                 aria-selected={rowSelected || undefined}
                 className="cursor-default outline-none"
                 onFocus={() => setActive(index)}
-                onClick={() => {
+                onClick={(event) => {
+                  event.currentTarget.focus();
                   setActive(index);
                   selectEntry(entry);
                 }}
@@ -364,15 +383,15 @@ function ProjectInspector({ selected, onClose }: { selected: ProjectSelection; o
         }
       />
       {worker ? (
-        <WorkerDetail key={`worker:${selected.accountId}:${selected.name}`} accountId={selected.accountId} name={selected.name} />
+        <WorkerDetail key={`worker:${selected.accountId}:${selected.name}`} accountId={selected.accountId} name={selected.name} onClose={onClose} />
       ) : (
-        <ProjectDetail key={`${selected.provider}:${selected.id}`} project={selected} />
+        <ProjectDetail key={`${selected.provider}:${selected.id}`} project={selected} onClose={onClose} />
       )}
     </InspectorPanel>
   );
 }
 
-function ProjectDetail({ project }: { project: UnifiedProject }) {
+function ProjectDetail({ project, onClose }: { project: UnifiedProject; onClose: () => void }) {
   return (
     <Tabs defaultValue="overview" className="flex min-h-0 flex-1 flex-col">
       <TabsList aria-label="Project details" className="shrink-0 overflow-x-auto">
@@ -388,6 +407,7 @@ function ProjectDetail({ project }: { project: UnifiedProject }) {
           <DetailRow label="Framework" value={project.framework ?? "—"} />
           <DetailRow label="Production branch" value={project.productionBranch ?? "—"} mono />
           <DetailRow label="Root directory" value={project.rootDirectory ?? "—"} mono />
+          <DetailRow label="Install command" value={project.installCommand ?? "—"} mono />
           <DetailRow label="Build command" value={project.buildCommand ?? "—"} mono />
           <DetailRow label="Output directory" value={project.outputDirectory ?? "—"} mono />
           <DetailRow label="Repository" value={project.repository ?? "—"} />
@@ -413,16 +433,130 @@ function ProjectDetail({ project }: { project: UnifiedProject }) {
         <ProjectEnv project={project} />
       </TabsContent>
       <TabsContent value="settings" className="overflow-auto p-4">
-        <p className="max-w-[56ch] text-pretty text-dense text-muted">
-          This view shows the provider configuration DeployDeck uses. Advanced project settings remain in the provider dashboard.
-        </p>
-        <dl className="mt-3 divide-y divide-line/70">
-          <DetailRow label="Production URL" value={project.productionUrl ?? "—"} />
-          <DetailRow label="Domains" value={project.domains.join(", ") || "—"} />
-        </dl>
+        <ProjectSettings project={project} onDeleted={onClose} />
       </TabsContent>
     </Tabs>
   );
+}
+
+function ProjectSettings({ project, onDeleted }: { project: UnifiedProject; onDeleted: () => void }) {
+  const client = useQueryClient();
+  const connection = useConnection();
+  const ask = useUiStore((state) => state.askConfirm);
+  const setScreen = useUiStore((state) => state.setScreen);
+  const [confirmName, setConfirmName] = useState("");
+  const form = useForm<ProjectSettingsValues>({
+    resolver: zodResolver(projectSettingsSchema),
+    defaultValues: {
+      name: project.name,
+      productionBranch: project.productionBranch ?? "main",
+      framework: project.framework ?? "",
+      rootDirectory: project.rootDirectory ?? "",
+      installCommand: project.installCommand ?? "",
+      buildCommand: project.buildCommand ?? "",
+      outputDirectory: project.outputDirectory ?? "",
+      buildCaching: true,
+    },
+  });
+  const buildCaching = form.watch("buildCaching");
+  const canWrite = project.provider === "vercel"
+    ? Boolean(connection.data?.vercel.connected)
+    : Boolean(connection.data?.cloudflare.capabilities?.pagesWrite);
+
+  const save = async (values: ProjectSettingsValues) => {
+    try {
+      const patch = {
+        name: values.name,
+        productionBranch: values.productionBranch.trim() || undefined,
+        framework: values.framework.trim() || undefined,
+        rootDirectory: values.rootDirectory.trim() || undefined,
+        installCommand: values.installCommand.trim() || undefined,
+        buildCommand: values.buildCommand.trim() || undefined,
+        outputDirectory: values.outputDirectory.trim() || undefined,
+        buildCaching: values.buildCaching,
+      };
+      if (project.provider === "vercel") await window.deployDeck.vercel.updateProject(project.id, patch);
+      else await window.deployDeck.cloudflare.updatePagesProject(project.accountId, project.name, patch);
+      await client.invalidateQueries({ queryKey: ["projects"] });
+      toast.success("Project settings saved");
+    } catch (error) {
+      toast.error(errorMessage(error));
+    }
+  };
+
+  const togglePause = async () => {
+    try {
+      if (project.paused) await window.deployDeck.vercel.resumeProject(project.id);
+      else await window.deployDeck.vercel.pauseProject(project.id);
+      await client.invalidateQueries({ queryKey: ["projects"] });
+      toast.success(project.paused ? "Project resumed" : "Project paused");
+    } catch (error) {
+      toast.error(errorMessage(error));
+    }
+  };
+
+  const remove = () => ask({
+    title: `Delete ${project.name}`,
+    body: "Deployments, domains, environment variables, and provider settings owned by this project will also be removed.",
+    actionLabel: "Delete project",
+    intent: "danger",
+    onConfirm: async () => {
+      if (project.provider === "vercel") await window.deployDeck.vercel.deleteProject(project.id);
+      else await window.deployDeck.cloudflare.deletePagesProject(project.accountId, project.name);
+      await client.invalidateQueries({ queryKey: ["projects"] });
+      onDeleted();
+      toast.success("Project deleted");
+    },
+  });
+
+  return (
+    <div className="space-y-5">
+      {!canWrite ? (
+        <div className="flex items-center justify-between gap-3 rounded-control bg-warning-soft px-3 py-2 text-dense text-warning-ink">
+          <span>Read access is available, but project changes require a write-capable connection.</span>
+          <Button size="sm" variant="secondary" onClick={() => setScreen("settings")}>Reconnect</Button>
+        </div>
+      ) : null}
+      <div className="grid grid-cols-2 gap-3">
+        <ProjectField label="Project name" className="col-span-2"><Input {...form.register("name")} aria-invalid={Boolean(form.formState.errors.name)} /></ProjectField>
+        <ProjectField label="Production branch"><Input {...form.register("productionBranch")} /></ProjectField>
+        <ProjectField label="Framework"><Input {...form.register("framework")} placeholder="Auto detect" /></ProjectField>
+        <ProjectField label="Root directory"><Input {...form.register("rootDirectory")} placeholder="Project root" /></ProjectField>
+        <ProjectField label="Install command"><Input {...form.register("installCommand")} placeholder="Provider default" /></ProjectField>
+        <ProjectField label="Build command"><Input {...form.register("buildCommand")} placeholder="Auto detect" /></ProjectField>
+        <ProjectField label="Output directory" className="col-span-2"><Input {...form.register("outputDirectory")} placeholder="Auto detect" /></ProjectField>
+        {project.provider === "cloudflare-pages" ? (
+          <label className="col-span-2 flex items-center justify-between rounded-control border border-line bg-surface px-3 py-2 text-dense text-ink">
+            Build cache
+            <SwitchControl checked={buildCaching} onCheckedChange={(checked) => form.setValue("buildCaching", checked, { shouldDirty: true })} ariaLabel="Enable Pages build cache" />
+          </label>
+        ) : null}
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <Button size="sm" loading={form.formState.isSubmitting} disabled={!canWrite} onClick={() => void form.handleSubmit(save)()}>Save settings</Button>
+        {project.provider === "vercel" ? (
+          <Button size="sm" variant="secondary" disabled={!canWrite} onClick={() => void togglePause()}>{project.paused ? <Play aria-hidden /> : <Pause aria-hidden />}{project.paused ? "Resume project" : "Pause project"}</Button>
+        ) : (
+          <Button size="sm" variant="secondary" disabled={!canWrite} onClick={async () => {
+            try { await window.deployDeck.cloudflare.purgePagesBuildCache(project.accountId, project.name); toast.success("Build cache purged"); }
+            catch (error) { toast.error(errorMessage(error)); }
+          }}>Purge build cache</Button>
+        )}
+      </div>
+      <div className="rounded-panel border border-failed-ink/25 bg-failed-soft p-3">
+        <h3 className="text-body font-semibold text-failed-ink">Danger zone</h3>
+        <p className="mt-1 text-dense text-failed-ink">Type <strong>{project.name}</strong> to enable permanent deletion.</p>
+        <div className="mt-3 flex gap-2">
+          <Input value={confirmName} onChange={(event) => setConfirmName(event.target.value)} placeholder={project.name} aria-label="Confirm project name" />
+          <Button size="sm" variant="danger" disabled={!canWrite || confirmName !== project.name} onClick={remove}><Trash2 aria-hidden /> Delete</Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ProjectField({ label, className, children }: { label: string; className?: string; children: ReactNode }) {
+  return <label className={cn("space-y-1.5 text-label font-medium text-muted", className)}><span className="block">{label}</span>{children}</label>;
 }
 
 function RedeployProductionButton({ project }: { project: UnifiedProject }) {
@@ -906,7 +1040,7 @@ function EnvRow({
   );
 }
 
-function WorkerDetail({ accountId, name }: { accountId: string; name: string }) {
+function WorkerDetail({ accountId, name, onClose }: { accountId: string; name: string; onClose: () => void }) {
   const client = useQueryClient();
   const prefs = usePrefs();
   const connection = useConnection();
@@ -1003,6 +1137,7 @@ function WorkerDetail({ accountId, name }: { accountId: string; name: string }) 
         <TabsTrigger value="domains">Domains</TabsTrigger>
         <TabsTrigger value="variables">Variables</TabsTrigger>
         <TabsTrigger value="secrets">Secrets</TabsTrigger>
+        <TabsTrigger value="settings">Settings</TabsTrigger>
       </TabsList>
 
       <TabsContent value="versions" className="overflow-auto">
@@ -1466,7 +1601,153 @@ function WorkerDetail({ accountId, name }: { accountId: string; name: string }) 
           </InspectorList>
         )}
       </TabsContent>
+
+      <TabsContent value="settings" className="overflow-auto p-4">
+        <WorkerSettings accountId={accountId} name={name} onDeleted={onClose} />
+      </TabsContent>
     </Tabs>
+  );
+}
+
+function WorkerSettings({ accountId, name, onDeleted }: { accountId: string; name: string; onDeleted: () => void }) {
+  const client = useQueryClient();
+  const connection = useConnection();
+  const ask = useUiStore((state) => state.askConfirm);
+  const setScreen = useUiStore((state) => state.setScreen);
+  const canWrite = Boolean(connection.data?.cloudflare.capabilities?.workersWrite);
+  const canSchedules = Boolean(connection.data?.cloudflare.capabilities?.workerSchedules);
+  const worker = useQuery({ queryKey: ["worker", accountId, name], queryFn: () => window.deployDeck.cloudflare.getWorker(accountId, name) });
+  const schedules = useQuery({ queryKey: ["worker-schedules", accountId, name], enabled: canSchedules, queryFn: () => window.deployDeck.cloudflare.listWorkerSchedules(accountId, name) });
+  const subdomain = useQuery({ queryKey: ["worker-subdomain", accountId, name], queryFn: () => window.deployDeck.cloudflare.getWorkerSubdomain(accountId, name) });
+  const [compatibilityDate, setCompatibilityDate] = useState("");
+  const [compatibilityFlags, setCompatibilityFlags] = useState("");
+  const [cronText, setCronText] = useState("");
+  const [subdomainEnabled, setSubdomainEnabled] = useState(false);
+  const [previewsEnabled, setPreviewsEnabled] = useState(false);
+  const [observability, setObservability] = useState(false);
+  const [source, setSource] = useState<LocalSourceHandle | null>(null);
+  const [workerSourceKind, setWorkerSourceKind] = useState<"worker-entry" | "worker-project" | "worker-bundle">("worker-entry");
+  const [confirmName, setConfirmName] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!worker.data) return;
+    setCompatibilityDate(worker.data.compatibilityDate ?? "");
+    setCompatibilityFlags(worker.data.compatibilityFlags.join(", "));
+  }, [worker.data]);
+  useEffect(() => { if (schedules.data) setCronText(schedules.data.map((item) => item.cron).join("\n")); }, [schedules.data]);
+  useEffect(() => {
+    if (!subdomain.data) return;
+    setSubdomainEnabled(subdomain.data.enabled);
+    setPreviewsEnabled(Boolean(subdomain.data.previewsEnabled));
+  }, [subdomain.data]);
+  useEffect(() => () => { if (source) void window.deployDeck.files.releaseLocalSource(source.id); }, [source]);
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      const flags = compatibilityFlags.split(",").map((item) => item.trim()).filter(Boolean);
+      const updates: Array<Promise<unknown>> = [
+        window.deployDeck.cloudflare.updateWorker(accountId, name, {
+          compatibilityDate: compatibilityDate || undefined,
+          compatibilityFlags: flags,
+          observability,
+        }),
+        window.deployDeck.cloudflare.updateWorkerSubdomain(accountId, name, {
+          enabled: subdomainEnabled,
+          previewsEnabled,
+        }),
+      ];
+      if (canSchedules) {
+        updates.push(window.deployDeck.cloudflare.updateWorkerSchedules(
+          accountId,
+          name,
+          cronText.split(/\r?\n/).map((cron) => cron.trim()).filter(Boolean).map((cron) => ({ cron })),
+        ));
+      }
+      await Promise.all(updates);
+      await Promise.all([
+        client.invalidateQueries({ queryKey: ["worker", accountId, name] }),
+        client.invalidateQueries({ queryKey: ["worker-schedules", accountId, name] }),
+        client.invalidateQueries({ queryKey: ["worker-subdomain", accountId, name] }),
+        client.invalidateQueries({ queryKey: ["projects"] }),
+      ]);
+      toast.success("Worker settings saved");
+    } catch (error) {
+      toast.error(errorMessage(error));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const upload = async (deploy: boolean) => {
+    const handle = source ?? await window.deployDeck.files.selectLocalSource(workerSourceKind);
+    if (!handle) return;
+    setSource(handle);
+    try {
+      await window.deployDeck.cloudflare.uploadWorker({
+        accountId,
+        scriptName: name,
+        sourceId: handle.id,
+        compatibilityDate: compatibilityDate || undefined,
+        compatibilityFlags: compatibilityFlags.split(",").map((item) => item.trim()).filter(Boolean),
+        message: "Uploaded from DeployDeck",
+        deploy,
+      });
+      await client.invalidateQueries({ queryKey: ["worker-versions", accountId, name] });
+      toast.success(deploy ? "Worker deployed" : "Worker version uploaded");
+    } catch (error) {
+      toast.error(errorMessage(error));
+    }
+  };
+
+  const remove = () => ask({
+    title: `Delete Worker ${name}`,
+    body: "The Worker, versions, routes, domains, variables, and schedules will be removed from Cloudflare.",
+    actionLabel: "Delete Worker",
+    intent: "danger",
+    onConfirm: async () => {
+      await window.deployDeck.cloudflare.deleteWorker(accountId, name);
+      await client.invalidateQueries({ queryKey: ["projects"] });
+      onDeleted();
+      toast.success("Worker deleted");
+    },
+  });
+
+  if (worker.isLoading || (canSchedules && schedules.isLoading) || subdomain.isLoading) return <PanelLoading compact />;
+  if (worker.isError) return <InlineError message={errorMessage(worker.error)} onRetry={() => void worker.refetch()} />;
+
+  return (
+    <div className="space-y-5">
+      {!canWrite ? (
+        <div className="flex items-center justify-between gap-3 rounded-control bg-warning-soft px-3 py-2 text-dense text-warning-ink">
+          <span>Worker settings are read-only until Cloudflare grants Workers Scripts write access.</span>
+          <Button size="sm" variant="secondary" onClick={() => setScreen("settings")}>Reconnect</Button>
+        </div>
+      ) : null}
+      <div className="grid grid-cols-2 gap-3">
+        <ProjectField label="Compatibility date"><Input type="date" value={compatibilityDate} onChange={(event) => setCompatibilityDate(event.target.value)} /></ProjectField>
+        <ProjectField label="Compatibility flags"><Input value={compatibilityFlags} onChange={(event) => setCompatibilityFlags(event.target.value)} placeholder="nodejs_compat" /></ProjectField>
+        <ProjectField label="Cron triggers" className="col-span-2"><Textarea className="font-mono text-dense" value={cronText} onChange={(event) => setCronText(event.target.value)} placeholder="0 * * * *" disabled={!canSchedules} /></ProjectField>
+        {!canSchedules ? <p className="col-span-2 text-label text-warning-ink">Cron schedules require Workers Cron or Workers Scripts permission; other settings remain available.</p> : null}
+        <label className="col-span-2 flex items-center justify-between rounded-control border border-line bg-surface px-3 py-2 text-dense text-ink"><span><strong className="font-medium">workers.dev</strong><span className="mt-0.5 block text-label text-muted">Serve this Worker on the account subdomain.</span></span><SwitchControl checked={subdomainEnabled} onCheckedChange={setSubdomainEnabled} ariaLabel="Enable workers.dev" /></label>
+        <label className="col-span-2 flex items-center justify-between rounded-control border border-line bg-surface px-3 py-2 text-dense text-ink"><span><strong className="font-medium">Preview URLs</strong><span className="mt-0.5 block text-label text-muted">Expose version previews on workers.dev.</span></span><SwitchControl checked={previewsEnabled} onCheckedChange={setPreviewsEnabled} ariaLabel="Enable Worker preview URLs" /></label>
+        <label className="col-span-2 flex items-center justify-between rounded-control border border-line bg-surface px-3 py-2 text-dense text-ink"><span><strong className="font-medium">Observability</strong><span className="mt-0.5 block text-label text-muted">Send invocation logs and traces to Workers Observability.</span></span><SwitchControl checked={observability} onCheckedChange={setObservability} ariaLabel="Enable Worker observability" /></label>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <Button size="sm" loading={saving} disabled={!canWrite} onClick={() => void save()}>Save settings</Button>
+        <SelectControl value={workerSourceKind} onValueChange={(next) => { setWorkerSourceKind(next as typeof workerSourceKind); setSource(null); }} options={[{ value: "worker-entry", label: "Entry file" }, { value: "worker-project", label: "Project folder" }, { value: "worker-bundle", label: "Prebuilt bundle" }]} ariaLabel="Worker upload source" size="sm" className="w-40" />
+        <Button size="sm" variant="secondary" disabled={!canWrite} onClick={() => void upload(false)}><Upload aria-hidden /> Upload version</Button>
+        <Button size="sm" variant="secondary" disabled={!canWrite} onClick={() => void upload(true)}><Upload aria-hidden /> Deploy now</Button>
+        <Button size="sm" variant="secondary" onClick={() => void window.deployDeck.cloudflare.downloadWorker(accountId, name)}><Download aria-hidden /> Download source</Button>
+      </div>
+      {source ? <p className="truncate text-label text-muted">Selected: {source.name} · {source.fileCount} files · opaque local handle</p> : null}
+      <div className="rounded-panel border border-failed-ink/25 bg-failed-soft p-3">
+        <h3 className="text-body font-semibold text-failed-ink">Danger zone</h3>
+        <p className="mt-1 text-dense text-failed-ink">Type <strong>{name}</strong> to enable permanent deletion.</p>
+        <div className="mt-3 flex gap-2"><Input value={confirmName} onChange={(event) => setConfirmName(event.target.value)} placeholder={name} aria-label="Confirm Worker name" /><Button size="sm" variant="danger" disabled={!canWrite || confirmName !== name} onClick={remove}><Trash2 aria-hidden /> Delete</Button></div>
+      </div>
+    </div>
   );
 }
 
@@ -1496,8 +1777,8 @@ function InlineError({ message, onRetry }: { message: string; onRetry: () => voi
  * focus reach the panel edges and every list in here looks the same. This
  * replaces nine hand-rolled `divide-y` + `-mx-2 flex min-h-10` variants.
  */
-function InspectorList({ children }: { children: ReactNode }) {
-  return <InspectorList>{children}</InspectorList>;
+export function InspectorList({ children }: { children: ReactNode }) {
+  return <div className="divide-y divide-line/70 border-t border-line">{children}</div>;
 }
 
 /** Padded region for the forms and prose that sit between lists. */

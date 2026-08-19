@@ -5,7 +5,17 @@ import { getStore } from "./store";
 
 export async function getPreferences(): Promise<AppPreferences> {
   const store = await getStore();
-  return { ...DEFAULT_PREFERENCES, ...store.get("preferences") };
+  const stored = store.get("preferences") as Partial<AppPreferences> | undefined;
+  const next: AppPreferences = {
+    ...DEFAULT_PREFERENCES,
+    ...stored,
+    schemaVersion: 2,
+    localUploadIgnore: Array.isArray(stored?.localUploadIgnore)
+      ? stored.localUploadIgnore.filter((item): item is string => typeof item === "string" && Boolean(item.trim()))
+      : DEFAULT_PREFERENCES.localUploadIgnore,
+  };
+  if (stored?.schemaVersion !== 2) store.set("preferences", next);
+  return next;
 }
 
 export async function setPreferences(patch: Partial<AppPreferences>): Promise<AppPreferences> {

@@ -120,7 +120,7 @@ export function SetupGuide({ onFinished }: { onFinished: () => void }) {
                 <Logo className="size-10" />
               </span>
               <div className="flex items-center gap-2.5" data-boot="meter">
-                <span className="font-mono text-micro tracking-[0.02em] text-subtle">{liveCount} of 2 live</span>
+                <span className="font-mono text-micro text-subtle">{liveCount} of 2 live</span>
                 <LampBank states={[providerLampState(vercel), providerLampState(cloudflare)]} />
               </div>
             </div>
@@ -134,7 +134,7 @@ export function SetupGuide({ onFinished }: { onFinished: () => void }) {
             <div ref={flow.stage} className="overflow-hidden">
               <div className="pt-7">
                 <div data-row>
-                  <h1 className="text-console font-semibold tracking-[-0.025em] text-balance text-ink">
+                  <h1 className="text-console font-semibold text-balance text-ink">
                     {copy.title}
                   </h1>
                   <p className="mt-2 text-pretty text-body text-muted">{copy.body}</p>
@@ -312,7 +312,7 @@ export function CompactConnect({ onReplaySetup }: { onReplaySetup: () => void })
       <main className="app-no-drag mx-auto flex min-h-0 w-full max-w-[560px] flex-1 flex-col justify-center px-8 pb-10">
         <header data-row>
           <Logo className="size-10" />
-          <h1 className="mt-5 text-console font-semibold tracking-[-0.025em] text-ink">
+          <h1 className="mt-5 text-console font-semibold text-ink">
             Both channels are dark
           </h1>
           <p className="mt-2 text-pretty text-body text-muted">

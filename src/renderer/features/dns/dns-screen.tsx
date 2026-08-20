@@ -1,8 +1,8 @@
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import * as Popover from "@radix-ui/react-popover";
 import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, ChevronDown, Copy, Download, FileUp, Pencil, Search, SlidersHorizontal, Trash2, X } from "lucide-react";
-import { useCallback, useEffect, useId, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { Check, ChevronDown, Copy, Download, FileUp, MoreHorizontal, Pencil, Search, SlidersHorizontal, Trash2, X } from "lucide-react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { toast } from "sonner";
 import type { DnsProvider, DnsRecord, DnsZone, SupportedDnsRecordType } from "@shared/models";
 import {
@@ -19,8 +19,9 @@ import {
 } from "@shared/dns-records";
 import { EmptyState, ScreenError } from "@/components/common/empty-state";
 import { ProviderGlyph } from "@/components/common/provider-glyph";
-import { InspectorHeader, InspectorPanel, ScreenToolbar } from "@/components/ui/layout";
-import { DropdownMenuContent, DropdownMenuItem } from "@/components/ui/menu";
+import { InspectorHeader, InspectorPanel, ResourceListFrame, ScreenToolbar } from "@/components/ui/layout";
+import { DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/menu";
+import { Panel } from "@/components/ui/panel";
 import {
   Badge,
   Button,
@@ -31,7 +32,6 @@ import {
   Skeleton,
   TableSkeleton,
   Textarea,
-  Tooltip,
 } from "@/components/ui/primitives";
 import { useConnection } from "@/hooks/use-connection";
 import { useDnsZones } from "@/hooks/use-data";
@@ -75,6 +75,7 @@ const TTL_OPTIONS = [
 interface EditingState {
   record?: DnsRecord;
   draft?: DnsRecordDraft;
+  returnFocusTo?: HTMLElement | null;
 }
 
 export function DnsScreen() {
@@ -313,14 +314,23 @@ export function DnsScreen() {
       <div className="flex min-w-0 flex-1 flex-col">
         {selectedZone ? (
           <>
+            <ResourceListFrame>
+            <Panel className="min-h-0 flex-1">
             <ScreenToolbar className="dns-toolbar">
+              <SelectControl
+                value={zoneKey(selectedZone)}
+                onValueChange={setSelectedZoneKey}
+                options={visibleZones.map((zone) => ({ value: zoneKey(zone), label: zone.name }))}
+                ariaLabel="Select DNS zone"
+                className="hidden w-52 max-[1399px]:flex"
+              />
               <div className="relative min-w-44 flex-1 basis-52">
                 <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted" aria-hidden />
                 <Input placeholder="Search name or content" aria-label="Search DNS records" className="pl-8" value={search} onChange={(event) => setSearch(event.target.value)} />
               </div>
-              <div className="contents max-[1180px]:hidden"><DnsFilterControls zone={selectedZone} type={type} proxied={proxied} sort={sort} onType={setType} onProxy={setProxied} onSort={setSort} /></div>
+              <div className="contents max-[1479px]:hidden"><DnsFilterControls zone={selectedZone} type={type} proxied={proxied} sort={sort} onType={setType} onProxy={setProxied} onSort={setSort} /></div>
               <Popover.Root>
-                <Popover.Trigger asChild><Button size="sm" variant="outline" className="min-[1181px]:hidden"><SlidersHorizontal aria-hidden /> Filters{secondaryFilterCount ? ` · ${secondaryFilterCount}` : ""}</Button></Popover.Trigger>
+                <Popover.Trigger asChild><Button size="sm" variant="outline" className="min-[1480px]:hidden"><SlidersHorizontal aria-hidden /> Filters{secondaryFilterCount ? ` · ${secondaryFilterCount}` : ""}</Button></Popover.Trigger>
                 <Popover.Portal><Popover.Content align="start" sideOffset={6} collisionPadding={8} className="z-[var(--z-dropdown)] w-72 space-y-2 rounded-panel bg-panel p-3 shadow-[var(--shadow-popover)]">
                   <DnsFilterControls zone={selectedZone} type={type} proxied={proxied} sort={sort} onType={setType} onProxy={setProxied} onSort={setSort} stacked />
                   {secondaryFilterCount ? <Button size="sm" variant="ghost" className="w-full justify-start text-muted" onClick={() => { setType("all"); setProxied("all"); setSort("name"); }}>Reset filters</Button> : null}
@@ -329,7 +339,7 @@ export function DnsScreen() {
               <div className="ml-auto flex items-center gap-2">
                 <span className="whitespace-nowrap text-dense text-muted tabular">{records.isLoading ? "Loading…" : `${items.length}${records.hasNextPage ? "+" : ""} records`}</span>
                 {selectedZone.provider === "cloudflare" ? <ZoneFileMenu canImport={canWrite} onImport={importZone} onExport={exportZone} /> : null}
-                <Button size="sm" disabled={!canWrite} onClick={openCreate}>Add record</Button>
+                <Button size="sm" variant="accent" disabled={!canWrite} onClick={openCreate}>Add record</Button>
               </div>
             </ScreenToolbar>
 
@@ -352,7 +362,7 @@ export function DnsScreen() {
             {records.isError ? (
               <ScreenError message={errorMessage(records.error)} onRetry={() => void records.refetch()} />
             ) : records.isLoading ? (
-              <TableSkeleton columns={7} label="Loading DNS records" />
+              <TableSkeleton columns={9} label="Loading DNS records" />
             ) : items.length === 0 ? (
               <EmptyState
                 title="No DNS records match"
@@ -372,7 +382,7 @@ export function DnsScreen() {
                 allSelected={allSelected}
                 onToggleAll={() => setSelectedIds(allSelected ? new Set() : new Set(selectableRecords.map((record) => record.id)))}
                 onToggle={(record) => setSelectedIds((current) => current.has(record.id) ? without(current, record.id) : withValue(current, record.id))}
-                onEdit={(record) => setEditing({ record, draft: dnsDraftFromRecord(record) })}
+                onEdit={(record, returnFocusTo) => setEditing({ record, draft: dnsDraftFromRecord(record), returnFocusTo })}
                 onDelete={requestDelete}
               />
             )}
@@ -380,6 +390,8 @@ export function DnsScreen() {
             {records.hasNextPage ? (
               <div className="border-t border-line p-2"><Button variant="ghost" size="sm" loading={records.isFetchingNextPage} onClick={() => void records.fetchNextPage()}>Load more</Button></div>
             ) : null}
+            </Panel>
+            </ResourceListFrame>
           </>
         ) : <EmptyState title="Select a zone" body="Choose a Cloudflare or Vercel authoritative DNS zone." />}
       </div>
@@ -449,7 +461,7 @@ function ZoneRail({ zones, visibleZones, selectedZone, provider, zoneSearch, onP
               aria-current={active ? "page" : undefined}
               className={cn(
                 "mb-1 flex w-full items-start gap-2 rounded-control px-2.5 py-2 text-left outline-none",
-                "transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] motion-reduce:transition-none",
+                "focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]",
                 active ? "bg-panel shadow-[inset_0_0_0_1px_var(--line)]" : "hover:bg-bg/70",
               )}
               onClick={() => onSelect(zone)}
@@ -505,22 +517,22 @@ function DnsRecordTable({ zone, records, selectedIds, allSelected, onToggleAll, 
   allSelected: boolean;
   onToggleAll: () => void;
   onToggle: (record: DnsRecord) => void;
-  onEdit: (record: DnsRecord) => void;
+  onEdit: (record: DnsRecord, returnFocusTo?: HTMLElement | null) => void;
   onDelete: (record: DnsRecord) => void;
 }) {
   return (
     <div className="min-h-0 flex-1 overflow-auto">
-      <table className="data-table data-table-fixed min-w-[960px]" aria-label={`DNS records for ${zone.name}`}>
-        <colgroup><col className="w-10" /><col className="w-20" /><col className="w-[22%]" /><col className="w-[30%]" /><col className="w-24" /><col className="w-20" /><col className="w-24" /><col className="w-32" /><col className="w-20" /></colgroup>
+      <table className="data-table data-table-fixed min-w-[900px]" aria-label={`DNS records for ${zone.name}`}>
+        <colgroup><col className="w-10" /><col className="w-[72px]" /><col className="w-[22%]" /><col className="w-[28%]" /><col className="w-20" /><col className="w-16" /><col className="w-[72px]" /><col className="dns-modified-column w-[100px]" /><col className="w-14" /></colgroup>
         <thead><tr>
           <th><CheckboxControl checked={allSelected} onCheckedChange={onToggleAll} ariaLabel="Select all supported DNS records" /></th>
-          <th>Type</th><th>Name</th><th>Content</th><th>Proxy</th><th data-numeric>TTL</th><th data-numeric>Priority</th><th data-numeric>Modified</th><th><span className="sr-only">Actions</span></th>
+          <th>Type</th><th>Name</th><th>Content</th><th>Proxy</th><th data-numeric>TTL</th><th data-numeric>Priority</th><th className="dns-modified-column" data-numeric>Modified</th><th><span className="sr-only">Actions</span></th>
         </tr></thead>
         <tbody>{records.map((record) => {
           const selected = selectedIds.has(record.id);
           const unsupported = record.type === "UNKNOWN";
           return (
-            <tr key={record.id} aria-selected={selected || undefined} tabIndex={0} onDoubleClick={() => onEdit(record)}>
+            <tr key={record.id} aria-selected={selected || undefined} tabIndex={0} onDoubleClick={(event) => onEdit(record, event.currentTarget)}>
               <td><CheckboxControl checked={selected} disabled={unsupported} onCheckedChange={() => onToggle(record)} ariaLabel={`Select ${displayType(record)} ${record.name}`} /></td>
               <td><Badge variant={unsupported ? "warning" : "outline"}>{displayType(record)}</Badge></td>
               <td className="truncate font-medium text-ink" title={record.name}>{record.name}</td>
@@ -528,12 +540,8 @@ function DnsRecordTable({ zone, records, selectedIds, allSelected, onToggleAll, 
               <td>{record.proxied ? <Badge variant="accent">Proxied</Badge> : <span className="text-muted">DNS only</span>}</td>
               <td data-numeric className="font-mono text-dense">{record.ttl === 1 ? "Auto" : record.ttl}</td>
               <td data-numeric className="font-mono text-dense">{record.priority ?? numberFromData(record, "priority") ?? "—"}</td>
-              <td data-numeric className="text-muted">{formatWhen(record.modifiedOn, "relative")}</td>
-              <td><div className="flex justify-end gap-0.5">
-                <CopyRecordMenu record={record} />
-                <Tooltip content={unsupported ? "View raw record" : "Edit record"}><Button size="icon-sm" variant="ghost" aria-label={`${unsupported ? "View" : "Edit"} ${displayType(record)} ${record.name}`} onClick={() => onEdit(record)}><Pencil aria-hidden /></Button></Tooltip>
-                <Tooltip content="Delete record"><Button size="icon-sm" variant="ghost" className="text-failed-ink hover:bg-failed-soft" aria-label={`Delete ${displayType(record)} ${record.name}`} onClick={() => onDelete(record)}><Trash2 aria-hidden /></Button></Tooltip>
-              </div></td>
+              <td data-numeric className="dns-modified-column text-muted">{formatWhen(record.modifiedOn, "relative")}</td>
+              <td><DnsRecordActions record={record} unsupported={unsupported} onEdit={(trigger) => onEdit(record, trigger)} onDelete={() => onDelete(record)} /></td>
             </tr>
           );
         })}</tbody>
@@ -542,17 +550,28 @@ function DnsRecordTable({ zone, records, selectedIds, allSelected, onToggleAll, 
   );
 }
 
-function CopyRecordMenu({ record }: { record: DnsRecord }) {
+function DnsRecordActions({ record, unsupported, onEdit, onDelete }: { record: DnsRecord; unsupported: boolean; onEdit: (trigger: HTMLButtonElement | null) => void; onDelete: () => void }) {
   const copy = (label: string, value: string) => { void copyText(value); toast.success(`${label} copied`); };
+  const triggerRef = useRef<HTMLButtonElement>(null);
   return (
-    <DropdownMenu.Root>
-      <DropdownMenu.Trigger asChild><Button size="icon-sm" variant="ghost" aria-label={`Copy ${displayType(record)} record`}><Copy aria-hidden /></Button></DropdownMenu.Trigger>
-      <DropdownMenuContent align="end" className="min-w-32">
-        <DropdownMenuItem onSelect={() => copy("Name", record.name)}>Copy name</DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => copy("Value", record.content || formatRecordData(record))}>Copy value</DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => copy("Record", `${displayType(record)} ${record.name} ${record.content || formatRecordData(record)}`)}>Copy record</DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu.Root>
+    <div className="flex justify-end">
+      <DropdownMenu.Root>
+        <DropdownMenu.Trigger asChild>
+          <Button ref={triggerRef} size="icon-sm" variant="ghost" aria-label={`Actions for ${displayType(record)} ${record.name}`}>
+            <MoreHorizontal aria-hidden />
+          </Button>
+        </DropdownMenu.Trigger>
+        <DropdownMenuContent align="end" className="min-w-44">
+          <DropdownMenuItem onSelect={() => onEdit(triggerRef.current)}><Pencil aria-hidden /> {unsupported ? "View raw record" : "Edit record"}</DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onSelect={() => copy("Name", record.name)}><Copy aria-hidden /> Copy name</DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => copy("Value", record.content || formatRecordData(record))}><Copy aria-hidden /> Copy value</DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => copy("Record", `${displayType(record)} ${record.name} ${record.content || formatRecordData(record)}`)}><Copy aria-hidden /> Copy record</DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem destructive onSelect={onDelete}><Trash2 aria-hidden /> Delete record</DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu.Root>
+    </div>
   );
 }
 
@@ -572,7 +591,7 @@ export function DnsRecordEditor({ zone, state, canWrite, onClose, onDelete, onSa
 
   if (!draft || state.record?.type === "UNKNOWN") {
     return (
-      <InspectorPanel size="md" className="dns-inspector overflow-hidden" aria-label="Unsupported DNS record inspector">
+      <InspectorPanel size="md" className="dns-inspector overflow-hidden" onDismiss={onClose} returnFocusTo={state.returnFocusTo} aria-label="Unsupported DNS record inspector">
         <InspectorHeader title={`${displayType(state.record!)} DNS record`} subtitle={`${zone.name} · ${zone.provider}`} onClose={onClose} />
         <div className="min-h-0 flex-1 overflow-auto p-4">
           <p className="text-body text-ink">This provider record type is newer than DeployDeck. Its original type and payload are preserved and shown read-only.</p>
@@ -603,7 +622,7 @@ export function DnsRecordEditor({ zone, state, canWrite, onClose, onDelete, onSa
   };
 
   return (
-    <InspectorPanel size="md" className="dns-inspector overflow-hidden" aria-label={`${state.record ? "Edit" : "Create"} DNS record`}>
+    <InspectorPanel size="md" className="dns-inspector overflow-hidden" onDismiss={onClose} returnFocusTo={state.returnFocusTo} aria-label={`${state.record ? "Edit" : "Create"} DNS record`}>
       <InspectorHeader title={state.record ? "Edit DNS record" : "Create DNS record"} subtitle={`${zone.name} · ${zone.provider}`} onClose={onClose} closeLabel="Close DNS record editor" />
       <form className="flex min-h-0 flex-1 flex-col" onSubmit={(event) => void submit(event)}>
         <div className="min-h-0 flex-1 overflow-auto p-4">
@@ -667,7 +686,7 @@ export function DnsTypePicker({ provider, value, onValueChange, includeAll = fal
   return (
     <Popover.Root open={open} onOpenChange={(next) => { setOpen(next); if (!next) setQuery(""); }}>
       <Popover.Trigger asChild><Button variant="outline" className={cn("justify-between font-normal", className)} aria-label="DNS record type"><span className="truncate">{value === "all" ? "All types" : value}</span><ChevronDown aria-hidden /></Button></Popover.Trigger>
-      <Popover.Portal><Popover.Content align="start" sideOffset={4} collisionPadding={8} className="z-[var(--z-dropdown)] w-80 rounded-control bg-panel p-1 shadow-[var(--shadow-popover)]">
+      <Popover.Portal><Popover.Content align="start" sideOffset={4} collisionPadding={8} className="z-[var(--z-dropdown)] w-80 rounded-panel bg-panel p-1 shadow-[var(--shadow-popover)]">
         <div className="relative m-1"><Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted" aria-hidden /><Input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search record types" className="pl-8" /></div>
         <div className="max-h-72 overflow-auto p-1">
           {includeAll && !query ? <TypeOption active={value === "all"} label="All types" description="Show every supported type" onSelect={() => { onValueChange("all"); setOpen(false); }} /> : null}
@@ -683,7 +702,7 @@ export function DnsTypePicker({ provider, value, onValueChange, includeAll = fal
 }
 
 function TypeOption({ active, label, description, onSelect }: { active: boolean; label: string; description: string; onSelect: () => void }) {
-  return <button type="button" className="flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left outline-none hover:bg-surface-2 focus-visible:bg-surface-2" onClick={onSelect}><span className="mt-0.5 grid size-4 shrink-0 place-items-center text-ember-ink">{active ? <Check className="size-3.5" aria-hidden /> : null}</span><span className="min-w-0"><span className="block text-dense font-medium text-ink">{label}</span><span className="block truncate text-label text-muted">{description}</span></span></button>;
+  return <button type="button" className="flex w-full items-start gap-2 rounded-control px-2 py-1.5 text-left outline-none hover:bg-surface-2 focus-visible:bg-surface-2" onClick={onSelect}><span className="mt-0.5 grid size-4 shrink-0 place-items-center text-brand-ink">{active ? <Check className="size-3.5" aria-hidden /> : null}</span><span className="min-w-0"><span className="block text-dense font-medium text-ink">{label}</span><span className="block truncate text-label text-muted">{description}</span></span></button>;
 }
 
 function FormField({ label, hint, error, className, children }: { label: string; hint?: string; error?: string; className?: string; children: ReactNode }) {

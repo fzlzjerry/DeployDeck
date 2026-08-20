@@ -14,7 +14,7 @@ import type { ComponentType } from "react";
 import { EmptyState, ScreenError } from "@/components/common/empty-state";
 import { StatusBadge } from "@/components/common/status-badge";
 import { ScreenToolbar } from "@/components/ui/layout";
-import { Panel, PanelBody, PanelHeader, PanelRow } from "@/components/ui/panel";
+import { Panel, PanelBody, PanelHeader, PanelRowButton } from "@/components/ui/panel";
 import { Badge, Button, TableSkeleton } from "@/components/ui/primitives";
 import { usePrefs } from "@/hooks/use-connection";
 import { useActivity, useUnifiedDeployments } from "@/hooks/use-data";
@@ -152,10 +152,10 @@ export function ActivityScreen() {
                   <PanelHeader title={group.label} count={group.items.length} size="sm" />
                   <PanelBody padding="none" divided>
                     {group.items.map((item) => (
-                      <PanelRow
+                      <PanelRowButton
                         key={item.id}
-                        onActivate={() => openRow(item)}
-                        activateLabel={`Open ${item.title}`}
+                        onClick={() => openRow(item)}
+                        aria-label={`Open ${item.title}`}
                         leading={<KindGlyph kind={item.kind as ActivityKind} />}
                         title={item.title}
                         description={item.detail || undefined}

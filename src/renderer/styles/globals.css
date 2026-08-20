@@ -3,9 +3,9 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
- * Cold chassis, one warm lamp.
- * Neutrals sit on a single blue-steel hue so the amber indicator reads as a
- * signal rather than as brand decoration.
+ * Geist structure, Kumo surfaces, one Cloudflare-orange provider signal.
+ * Product chrome is neutral. Blue carries interaction; orange identifies
+ * Cloudflare and the physical "lamp" metaphor only.
  *
  * Every status colour splits into three roles, because a colour bright enough
  * to fill an indicator is too bright to be text on a light surface:
@@ -15,21 +15,32 @@
  * Run `node scripts/contrast.mjs` after touching any of these.
  */
 :root {
-  /* Elevation: panels are raised above a recessed canvas, in both modes. */
-  --canvas: oklch(0.958 0.005 252);
-  --bg: oklch(0.975 0.004 252);
-  --panel: oklch(0.995 0.002 252);
-  --panel-header: oklch(0.974 0.004 252);
-  --surface: oklch(0.948 0.006 252);
-  --surface-2: oklch(0.912 0.008 252);
-  --surface-3: oklch(0.868 0.01 252);
-  --surface-sunken: oklch(0.928 0.006 252);
+  --canvas: oklch(0.9875 0 0);
+  --bg: oklch(0.98 0 0);
+  --panel: oklch(1 0 0);
+  --panel-header: oklch(1 0 0);
+  --surface: oklch(0.97 0 0);
+  --surface-2: oklch(0.96 0 0);
+  --surface-3: oklch(0.922 0 0);
+  --surface-sunken: oklch(0.96 0 0);
+  --base: var(--panel);
+  --elevated: var(--bg);
+  --recessed: var(--surface-2);
+  --tint: var(--surface);
+  --hairline: var(--line);
 
-  --ink: oklch(0.205 0.018 252);
-  --muted: oklch(0.448 0.018 252);
-  --subtle: oklch(0.505 0.016 252);
-  --line: oklch(0.878 0.008 252);
-  --line-strong: oklch(0.828 0.01 252);
+  --ink: oklch(0.21 0.006 285.885);
+  --muted: oklch(0.5 0 0);
+  --subtle: oklch(0.54 0 0);
+  --line: oklch(0.935 0 0);
+  --line-strong: oklch(0.87 0 0);
+
+  --brand: oklch(0.5772 0.2324 260);
+  --brand-hover: oklch(0.488 0.243 264.376);
+  --brand-active: oklch(0.445 0.22 264);
+  --brand-fg: oklch(1 0 0);
+  --brand-ink: oklch(0.424 0.199 265.638);
+  --brand-soft: oklch(0.94 0.02 255.6);
 
   --ember: oklch(0.735 0.173 60);
   --ember-hover: oklch(0.775 0.16 62);
@@ -66,12 +77,13 @@
   --canceled-ink: oklch(0.5 0.014 252);
   --canceled-soft: oklch(0.945 0.005 252);
 
-  --focus-ring: oklch(0.53 0.127 58);
-  --overlay: oklch(0.14 0.014 252 / 0.55);
-  --control: oklch(0.998 0.001 252);
-  --control-hover: oklch(0.955 0.005 252);
+  --focus-ring: oklch(0.15 0 0);
+  --overlay: oklch(0.14 0 0 / 0.55);
+  --control: oklch(1 0 0);
+  --control-hover: oklch(0.97 0 0);
 
   --shadow-popover: 0 10px 30px oklch(0.2 0.02 252 / 0.16), 0 1px 2px oklch(0.2 0.02 252 / 0.1);
+  --shadow-card: 0 1px 2px oklch(0 0 0 / 0.045);
   --chassis-wash: radial-gradient(125% 70% at 50% -18%, oklch(1 0 0 / 0.85), transparent 58%);
 
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
@@ -88,25 +100,37 @@
   --z-toast: 60;
   --z-tooltip: 70;
 
-  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", system-ui, sans-serif;
+  --font: "Geist Variable", -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
   --mono: "Geist Mono Variable", "SF Mono", ui-monospace, Menlo, Consolas, monospace;
 }
 
 .dark {
-  --canvas: oklch(0.118 0.011 252);
-  --bg: oklch(0.135 0.011 252);
-  --panel: oklch(0.172 0.013 252);
-  --panel-header: oklch(0.15 0.012 252);
-  --surface: oklch(0.171 0.013 252);
-  --surface-2: oklch(0.212 0.015 252);
-  --surface-3: oklch(0.262 0.016 252);
-  --surface-sunken: oklch(0.105 0.01 252);
+  --canvas: oklch(0.1 0 0);
+  --bg: oklch(0.12 0 0);
+  --panel: oklch(0.17 0 0);
+  --panel-header: oklch(0.17 0 0);
+  --surface: oklch(0.15 0 0);
+  --surface-2: oklch(0.269 0 0);
+  --surface-3: oklch(0.32 0 0);
+  --surface-sunken: oklch(0.12 0 0);
+  --base: var(--panel);
+  --elevated: var(--bg);
+  --recessed: var(--surface-2);
+  --tint: var(--surface);
+  --hairline: var(--line);
 
-  --ink: oklch(0.955 0.006 252);
-  --muted: oklch(0.705 0.014 252);
-  --subtle: oklch(0.605 0.016 252);
-  --line: oklch(0.315 0.014 252 / 0.7);
-  --line-strong: oklch(0.375 0.016 252 / 0.85);
+  --ink: oklch(0.97 0 0);
+  --muted: oklch(0.708 0 0);
+  --subtle: oklch(0.645 0 0);
+  --line: oklch(0.269 0 0);
+  --line-strong: oklch(0.371 0 0);
+
+  --brand: oklch(0.55 0.21 260);
+  --brand-hover: oklch(0.62 0.2 258);
+  --brand-active: oklch(0.5 0.2 262);
+  --brand-fg: oklch(1 0 0);
+  --brand-ink: oklch(0.707 0.13 254.624);
+  --brand-soft: oklch(0.26 0.07 260);
 
   --ember: oklch(0.795 0.148 62);
   --ember-hover: oklch(0.845 0.111 64);
@@ -143,13 +167,14 @@
   --canceled-ink: oklch(0.715 0.012 252);
   --canceled-soft: oklch(0.264 0.006 252);
 
-  --focus-ring: oklch(0.795 0.148 62);
-  --overlay: oklch(0.05 0.012 252 / 0.72);
-  --control: oklch(0.158 0.012 252);
-  --control-hover: oklch(0.2 0.014 252);
+  --focus-ring: oklch(0.935 0 0);
+  --overlay: oklch(0.05 0 0 / 0.72);
+  --control: oklch(0.21 0.006 285.885);
+  --control-hover: oklch(0.269 0 0);
 
   --shadow-popover: 0 12px 34px oklch(0.02 0.01 252 / 0.62), 0 1px 2px oklch(0.02 0.01 252 / 0.5);
-  --chassis-wash: radial-gradient(125% 72% at 50% -16%, oklch(0.82 0.035 252 / 0.1), transparent 60%);
+  --shadow-card: 0 1px 2px oklch(0 0 0 / 0.3);
+  --chassis-wash: radial-gradient(125% 72% at 50% -16%, oklch(0.82 0 0 / 0.1), transparent 60%);
 }
 
 /*
@@ -158,16 +183,16 @@
  * `console` is reserved for the first-run console heading.
  */
 @theme {
-  /* Cards top out at 12px; controls stay at 8px. */
+  /* Product panels stay taut; controls retain a slightly softer 8px edge. */
   --radius-panel: 12px;
   --radius-control: 8px;
 
-  --text-micro: 11px;
+  --text-micro: 12px;
   --text-micro--line-height: 16px;
-  --text-label: 12px;
-  --text-label--line-height: 16px;
-  --text-dense: 13px;
-  --text-dense--line-height: 18px;
+  --text-label: 14px;
+  --text-label--line-height: 20px;
+  --text-dense: 14px;
+  --text-dense--line-height: 20px;
   --text-body: 14px;
   --text-body--line-height: 20px;
   --text-section: 16px;
@@ -187,11 +212,22 @@
   --color-surface-2: var(--surface-2);
   --color-surface-3: var(--surface-3);
   --color-surface-sunken: var(--surface-sunken);
+  --color-base: var(--base);
+  --color-elevated: var(--elevated);
+  --color-recessed: var(--recessed);
+  --color-tint: var(--tint);
+  --color-hairline: var(--hairline);
   --color-ink: var(--ink);
   --color-muted: var(--muted);
   --color-subtle: var(--subtle);
   --color-line: var(--line);
   --color-line-strong: var(--line-strong);
+  --color-brand: var(--brand);
+  --color-brand-hover: var(--brand-hover);
+  --color-brand-active: var(--brand-active);
+  --color-brand-fg: var(--brand-fg);
+  --color-brand-ink: var(--brand-ink);
+  --color-brand-soft: var(--brand-soft);
   --color-ember: var(--ember);
   --color-ember-hover: var(--ember-hover);
   --color-ember-active: var(--ember-active);
@@ -242,7 +278,6 @@ body {
   font-family: var(--font);
   font-size: var(--text-body);
   line-height: 20px;
-  letter-spacing: -0.01em;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   user-select: none;
@@ -284,32 +319,15 @@ select {
 }
 
 .compact {
-  --row-h: 36px;
+  --row-h: 40px;
 }
 
 .comfortable {
-  --row-h: 44px;
+  --row-h: 48px;
 }
 
 ::selection {
   background: color-mix(in oklch, var(--ember) 30%, transparent);
-}
-
-:focus-visible {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: 2px;
-}
-
-button,
-a,
-input,
-select,
-textarea {
-  transition:
-    color 160ms var(--ease-out-expo),
-    background-color 160ms var(--ease-out-expo),
-    border-color 160ms var(--ease-out-expo),
-    opacity 160ms var(--ease-out-expo);
 }
 
 button:not(:disabled),
@@ -336,18 +354,18 @@ button:not(:disabled),
 }
 
 .data-table th {
-  height: 38px;
-  padding: 0 14px;
+  height: 40px;
+  padding: 0 16px;
   border-bottom: 1px solid var(--line);
   color: var(--muted);
-  font-size: var(--text-label);
-  font-weight: 500;
+  font-size: var(--text-body);
+  font-weight: 600;
   white-space: nowrap;
 }
 
 .data-table td {
   height: var(--row-h, 40px);
-  padding: 0 14px;
+  padding: 0 16px;
   border-bottom: 1px solid color-mix(in oklch, var(--line) 72%, transparent);
   white-space: nowrap;
 }
@@ -366,7 +384,6 @@ button:not(:disabled),
 }
 
 .data-table tbody tr {
-  transition: background-color 140ms var(--ease-out-expo);
 }
 
 /* Order matters: selection must survive hover, and focus must survive both. */
@@ -375,11 +392,11 @@ button:not(:disabled),
 }
 
 .data-table tbody tr[aria-selected="true"] {
-  background: color-mix(in oklch, var(--ember-soft) 55%, transparent);
+  background: color-mix(in oklch, var(--brand-soft) 70%, transparent);
 }
 
 .data-table tbody tr[aria-selected="true"]:hover {
-  background: var(--ember-soft);
+  background: var(--brand-soft);
 }
 
 .data-table tbody tr:focus-visible {
@@ -391,21 +408,15 @@ button:not(:disabled),
   width: clamp(420px, 42vw, 540px);
 }
 
-@media (max-width: 1180px) {
-  .deployment-inspector,
-  .inspector-panel {
-    position: absolute;
-    inset-block: 0;
-    right: 0;
-    z-index: var(--z-panel-overlay);
-    width: min(560px, 64vw);
-    background: var(--canvas);
-    border-left: 0;
-    box-shadow: var(--shadow-popover);
-  }
-
+@media (max-width: 1399px) {
   .dns-zone-rail {
-    width: 220px;
+    display: none;
+  }
+}
+
+@media (max-width: 1499px) {
+  .dns-modified-column {
+    display: none;
   }
 }
 
@@ -429,7 +440,7 @@ button:not(:disabled),
 }
 
 .dd-toaster [data-sonner-toast] {
-  border: 1px solid var(--line) !important;
+  border: 0 !important;
   border-radius: var(--radius) !important;
   background: var(--panel) !important;
   color: var(--ink) !important;

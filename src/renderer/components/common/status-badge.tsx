@@ -76,10 +76,14 @@ const brandFor: Record<Provider, ProviderBrand> = {
  */
 export function ProviderMark({ provider, showIcon = true }: { provider: Provider; showIcon?: boolean }) {
   if (!showIcon) return <span>{providerLabel(provider)}</span>;
+  const brand = brandFor[provider];
 
   return (
     <span className="inline-flex min-w-0 items-center gap-2">
-      <ProviderGlyph brand={brandFor[provider]} className="size-3.5 shrink-0 text-muted" />
+      <ProviderGlyph
+        brand={brand}
+        className={cn("size-3.5 shrink-0", brand === "cloudflare" ? "text-ember-ink" : "text-ink")}
+      />
       <span className="truncate">{providerLabel(provider)}</span>
     </span>
   );

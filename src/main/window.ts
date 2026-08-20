@@ -32,7 +32,7 @@ export async function createMainWindow(): Promise<BrowserWindow> {
     title: "DeployDeck",
     titleBarStyle: "hiddenInset",
     trafficLightPosition: { x: 16, y: 18 },
-    backgroundColor: nativeTheme.shouldUseDarkColors ? "#111318" : "#f8f7f5",
+    backgroundColor: nativeTheme.shouldUseDarkColors ? "#1a1a1a" : "#fbfbfb",
     show: !prefs.startMinimized,
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),

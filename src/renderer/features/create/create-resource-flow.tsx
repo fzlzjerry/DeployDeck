@@ -286,7 +286,7 @@ export function CreateResourceFlow({ kind }: { kind: CreateResourceKind }) {
           <ol className="mb-6 flex items-center" aria-label="Creation progress">
             {STEP_LABELS.map((label, index) => (
               <li key={label} className={cn("flex items-center", index < STEP_LABELS.length - 1 && "flex-1")}>
-                <span className={cn("grid size-6 shrink-0 place-items-center rounded-full border text-label font-medium", index <= step ? "border-ember bg-ember text-ember-fg" : "border-line bg-panel text-muted")}>
+                <span className={cn("grid size-6 shrink-0 place-items-center rounded-full border text-label font-medium", index <= step ? "border-brand bg-brand text-brand-fg" : "border-line bg-panel text-muted")}>
                   {index < step ? <Check className="size-3.5" aria-hidden /> : index + 1}
                 </span>
                 <span className={cn("ml-2 text-dense", index === step ? "font-medium text-ink" : "text-muted")}>{label}</span>
@@ -458,7 +458,7 @@ function SourceStep(props: {
             />
           ) : null}
           <button type="button" className="flex w-full items-center gap-3 rounded-control border border-dashed border-line-strong bg-surface px-4 py-4 text-left hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]" onClick={() => void props.onChooseLocal()}>
-            <span className="grid size-9 place-items-center rounded-control bg-panel text-ember-ink"><FolderOpen className="size-4" aria-hidden /></span>
+            <span className="grid size-9 place-items-center rounded-control bg-panel text-brand-ink"><FolderOpen className="size-4" aria-hidden /></span>
             <span className="min-w-0"><span className="block text-body font-medium text-ink">{props.source ? props.source.name : localSourceLabel(props.provider)}</span><span className="block truncate text-dense text-muted">{props.source ? `${props.source.fileCount} files · ${formatBytes(props.source.totalBytes)} · expires ${new Date(props.source.expiresAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : "Choose a source without exposing file access to the renderer."}</span></span>
           </button>
           {props.source?.warnings.map((warning) => <p key={warning} className="mt-2 text-dense text-warning-ink">{warning}</p>)}
@@ -569,7 +569,7 @@ function ReviewStep({ provider, name, sourceMode, repository, branch, source, fr
   return (
     <div>
       <dl className="divide-y divide-line">{rows.map(([label, value]) => <div key={label} className="grid grid-cols-[140px_1fr] gap-4 py-2.5"><dt className="text-dense text-muted">{label}</dt><dd className="min-w-0 break-words text-dense text-ink">{value}</dd></div>)}</dl>
-      {progress ? <div className="mt-4 rounded-control bg-surface px-3 py-3"><div className="flex items-center gap-2 text-dense text-ink">{!(["complete", "failed", "canceled"] as string[]).includes(progress.phase) ? <LoaderCircle className="size-3.5 animate-spin motion-reduce:animate-none" aria-hidden /> : null}{progress.label}</div><div className="mt-2 h-1.5 overflow-hidden rounded-full bg-surface-2"><div className="h-full bg-ember transition-[width] duration-200 motion-reduce:transition-none" style={{ width: `${Math.min(100, (progress.completed / Math.max(1, progress.total)) * 100)}%` }} /></div></div> : null}
+      {progress ? <div className="mt-4 rounded-control bg-surface px-3 py-3"><div className="flex items-center gap-2 text-dense text-ink">{!(["complete", "failed", "canceled"] as string[]).includes(progress.phase) ? <LoaderCircle className="size-3.5 animate-spin motion-reduce:animate-none" aria-hidden /> : null}{progress.label}</div><div className="mt-2 h-1.5 overflow-hidden rounded-full bg-surface-2"><div className="h-full bg-brand transition-[width] duration-200 motion-reduce:transition-none" style={{ width: `${Math.min(100, (progress.completed / Math.max(1, progress.total)) * 100)}%` }} /></div></div> : null}
     </div>
   );
 }

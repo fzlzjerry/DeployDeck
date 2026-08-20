@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { isOAuthCancelledMessage } from "@shared/oauth";
 import { CLOUDFLARE_TOKEN_URL, VERCEL_TOKEN_URL } from "@shared/provider-types";
 import { Lamp, LampReadout, type LampState } from "@/components/common/lamp";
-import { ProviderTile } from "@/components/common/provider-glyph";
+import { ProviderGlyph, ProviderTile } from "@/components/common/provider-glyph";
 import { SettingRow } from "@/components/ui/layout";
 import { Button, Input, Label } from "@/components/ui/primitives";
 import { useConnect, useConnection } from "@/hooks/use-connection";
@@ -134,7 +134,7 @@ export function ConnectionStatusPill({
       role="status"
       aria-live="polite"
       className={cn(
-        "inline-flex h-[22px] shrink-0 items-center gap-1.5 rounded-full border py-0.5 pr-2.5 pl-1 text-label font-medium",
+        "inline-flex h-6 shrink-0 items-center gap-1.5 rounded-full border py-0.5 pr-2.5 pl-1 text-label font-medium",
         connected ? "border-ready-ink/25 bg-ready-soft text-ready-ink" : "border-line bg-surface-2 text-muted",
         className,
       )}
@@ -192,9 +192,8 @@ export function ProviderTokenForm({
           placeholder={connected ? `Paste a new ${provider.name} token` : `Paste your ${provider.name} token`}
           className="font-mono text-dense placeholder:font-sans placeholder:text-body"
         />
-        {/* Once connected, Reconnect is the row's primary action, so replacing
-            the token steps down to secondary. Two ember fills in one row spends
-            the accent twice for one decision. */}
+        {/* Once connected, replacing the credential is a secondary recovery
+            path. It stays visually quieter than a first-time connection. */}
         <Button
           type="submit"
           variant={connected ? "secondary" : "default"}
@@ -232,11 +231,19 @@ function DisconnectButton({ provider }: { provider: ProviderConnectionState }) {
   );
 }
 
-function SignInButton({ provider, reconnect }: { provider: ProviderConnectionState; reconnect?: boolean }) {
+function SignInButton({
+  provider,
+  reconnect,
+  compact = false,
+}: {
+  provider: ProviderConnectionState;
+  reconnect?: boolean;
+  compact?: boolean;
+}) {
   if (provider.oauthConnecting) {
     return (
       <div className="flex items-center gap-2">
-        <Button type="button" loading disabled>
+        <Button type="button" size={compact ? "sm" : "default"} loading disabled>
           Waiting for browser…
         </Button>
         <Button type="button" variant="ghost" size="sm" className="text-muted" onClick={provider.cancelSignIn}>
@@ -249,6 +256,7 @@ function SignInButton({ provider, reconnect }: { provider: ProviderConnectionSta
   return (
     <Button
       type="button"
+      size={compact ? "sm" : "default"}
       variant={reconnect ? "secondary" : "default"}
       onClick={provider.signIn}
       disabled={!provider.oauthAvailable || provider.connecting || provider.oauthBlocked}
@@ -263,19 +271,23 @@ function PasteTokenSlot({
   provider,
   autoFocus,
   defaultOpen,
+  compact = false,
+  triggerLabel = "Or paste a token",
 }: {
   provider: ProviderConnectionState;
   autoFocus?: boolean;
   defaultOpen?: boolean;
+  compact?: boolean;
+  triggerLabel?: string;
 }) {
   const [open, setOpen] = useState(Boolean(defaultOpen));
 
   return (
-    <div className="space-y-2">
+    <div className={cn(compact && !open ? "contents" : "space-y-2", compact && open && "basis-full pt-1")}>
       {open ? (
         <>
           <ProviderTokenForm provider={provider} autoFocus={autoFocus} />
-          <div className="flex items-center gap-2">
+          <div className={cn("flex items-center gap-2", compact && "justify-end")}>
             <TokenPageButton provider={provider} />
             {provider.oauthAvailable ? (
               <Button variant="ghost" size="sm" className="text-muted" onClick={() => setOpen(false)}>
@@ -286,7 +298,7 @@ function PasteTokenSlot({
         </>
       ) : (
         <Button variant="ghost" size="sm" className="text-muted" onClick={() => setOpen(true)}>
-          Or paste a token
+          {triggerLabel}
         </Button>
       )}
     </div>
@@ -369,7 +381,7 @@ export function ProviderChannel({
       <div className="relative flex items-center gap-3">
         <ProviderTile brand={provider.id} />
         <div className="min-w-0 flex-1">
-          <p className="text-body font-semibold tracking-[-0.01em] text-ink">{provider.name}</p>
+          <p className="text-body font-semibold text-ink">{provider.name}</p>
           <p className="truncate text-dense text-muted">
             {connected
               ? (provider.account ?? "Connected")
@@ -434,26 +446,35 @@ export function ProviderConnectionRow({ provider }: { provider: ProviderConnecti
       className="items-start"
       label={
         <span className="flex items-center gap-2">
+          <ProviderGlyph
+            brand={provider.id}
+            className={cn("size-3.5", provider.id === "cloudflare" ? "text-ember-ink" : "text-ink")}
+          />
           <span>{provider.name}</span>
           <ConnectionStatusPill connected={provider.connected} checking={provider.checking} />
         </span>
       }
       description={detail}
     >
-      <div className="w-[min(28rem,46vw)] space-y-2">
-        {provider.oauthAvailable ? <SignInButton provider={provider} reconnect={provider.connected} /> : null}
+      <div className="flex w-[min(24rem,44vw)] flex-wrap items-center justify-end gap-1.5">
+        {provider.oauthAvailable ? <SignInButton provider={provider} reconnect={provider.connected} compact /> : null}
         {!provider.oauthAvailable && !provider.connected ? (
-          <p className="text-dense text-muted">
+          <p className="basis-full text-right text-dense text-muted">
             OAuth is not configured. Paste a token to connect this provider.
           </p>
         ) : null}
         {provider.error ? (
-          <p role="alert" className="flex gap-1.5 text-dense text-failed-ink">
+          <p role="alert" className="flex basis-full justify-end gap-1.5 text-dense text-failed-ink">
             <TriangleAlert className="mt-px size-3.5 shrink-0" aria-hidden />
             {provider.error}
           </p>
         ) : null}
-        <PasteTokenSlot provider={provider} defaultOpen={!provider.oauthAvailable && !provider.connected} />
+        <PasteTokenSlot
+          provider={provider}
+          defaultOpen={!provider.oauthAvailable && !provider.connected}
+          compact
+          triggerLabel="Use token"
+        />
         {provider.connected ? <DisconnectButton provider={provider} /> : null}
       </div>
     </SettingRow>

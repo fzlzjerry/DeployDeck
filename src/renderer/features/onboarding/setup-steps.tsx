@@ -160,14 +160,14 @@ export function StepMeter({
                 data-fill
                 className={cn(
                   "absolute inset-0 origin-left rounded-full",
-                  active ? "bg-ember" : done ? "bg-ready" : "bg-transparent",
+                  active ? "bg-brand" : done ? "bg-ready" : "bg-transparent",
                 )}
                 style={{ transform: "scaleX(0)" }}
               />
             </span>
             <span
               className={cn(
-                "truncate font-mono text-[10.5px] tracking-[0.02em] transition-colors duration-200",
+                "truncate font-mono text-micro",
                 active ? "text-ink" : done ? "text-muted group-hover:text-ink" : "text-subtle",
               )}
             >

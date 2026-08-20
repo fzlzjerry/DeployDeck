@@ -55,12 +55,25 @@ const ACTIVE_REFRESH_INTERVAL_OPTIONS = [
   { value: "10000", label: "Every 10 seconds" },
 ];
 
+const SETTINGS_SECTIONS = [
+  ["connections", "Connections"],
+  ["general", "General"],
+  ["appearance", "Appearance"],
+  ["uploads", "Deploy & upload"],
+  ["refresh", "Refresh"],
+  ["notifications", "Notifications"],
+  ["about", "Setup & version"],
+] as const;
+
+type SettingsSectionId = (typeof SETTINGS_SECTIONS)[number][0];
+
 export function SettingsScreen({ onReplaySetup }: { onReplaySetup?: () => void }) {
   const prefs = usePrefs();
   const client = useQueryClient();
   const vercel = useProviderConnection("vercel");
   const cloudflare = useProviderConnection("cloudflare");
   const [version, setVersion] = useState("");
+  const [section, setSection] = useState<SettingsSectionId>("connections");
 
   // Returning null here flashed an empty screen while preferences loaded. The
   // skeleton mirrors the real section rhythm instead.
@@ -69,7 +82,7 @@ export function SettingsScreen({ onReplaySetup }: { onReplaySetup?: () => void }
       <div className="h-full overflow-auto">
         <div className="w-full max-w-3xl px-6 pt-1 pb-14">
           <div className="grid gap-6" role="status" aria-label="Loading settings">
-            {[2, 4, 3].map((rows, index) => (
+            {[2].map((rows, index) => (
               <Panel key={index}>
                 <PanelHeader
                   size="sm"
@@ -107,25 +120,25 @@ export function SettingsScreen({ onReplaySetup }: { onReplaySetup?: () => void }
 
   return (
     <div className="h-full overflow-auto scroll-smooth">
-      <div className="flex w-full max-w-6xl items-start gap-6 px-6 pt-1 pb-14">
+      <div className="flex w-full max-w-6xl items-start gap-6 px-6 pt-4 pb-14">
         <nav className="sticky top-0 hidden w-40 shrink-0 space-y-1 py-1 min-[1100px]:block" aria-label="Settings sections">
-          {[
-            ["connections", "Connections"],
-            ["general", "General"],
-            ["appearance", "Appearance"],
-            ["uploads", "Deploy & upload"],
-            ["refresh", "Refresh"],
-            ["notifications", "Notifications"],
-            ["about", "Setup & version"],
-          ].map(([id, label]) => (
-            <a key={id} href={`#settings-${id}`} className="block rounded-control px-2.5 py-2 text-dense text-muted hover:bg-surface-2 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]">
+          {SETTINGS_SECTIONS.map(([id, label]) => (
+            <button key={id} type="button" aria-current={section === id ? "page" : undefined} onClick={() => setSection(id)} className={section === id ? "block w-full rounded-control bg-panel px-2.5 py-2 text-left text-body font-medium text-ink ring-1 ring-line" : "block w-full rounded-control px-2.5 py-2 text-left text-body text-muted hover:bg-surface hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]"}>
               {label}
-            </a>
+            </button>
           ))}
         </nav>
         <div className="min-w-0 w-full max-w-3xl">
+        <div className="mb-4 flex gap-1 overflow-x-auto pb-1 min-[1100px]:hidden" aria-label="Settings sections">
+          {SETTINGS_SECTIONS.map(([id, label]) => (
+            <Button key={id} type="button" size="sm" variant={section === id ? "secondary" : "ghost"} onClick={() => setSection(id)}>
+              {label}
+            </Button>
+          ))}
+        </div>
         <div className="space-y-6">
           <SettingsSection
+            className={section === "connections" ? undefined : "hidden"}
             id="settings-connections"
             size="sm"
             title="Connections"
@@ -136,6 +149,7 @@ export function SettingsScreen({ onReplaySetup }: { onReplaySetup?: () => void }
           </SettingsSection>
 
           <SettingsSection
+            className={section === "general" ? undefined : "hidden"}
             id="settings-general"
             size="sm"
             title="General"
@@ -187,6 +201,7 @@ export function SettingsScreen({ onReplaySetup }: { onReplaySetup?: () => void }
           </SettingsSection>
 
           <SettingsSection
+            className={section === "appearance" ? undefined : "hidden"}
             id="settings-appearance"
             size="sm"
             title="Appearance"
@@ -225,6 +240,7 @@ export function SettingsScreen({ onReplaySetup }: { onReplaySetup?: () => void }
           </SettingsSection>
 
           <SettingsSection
+            className={section === "uploads" ? undefined : "hidden"}
             id="settings-uploads"
             size="sm"
             title="Deploy and upload"
@@ -259,6 +275,7 @@ export function SettingsScreen({ onReplaySetup }: { onReplaySetup?: () => void }
           </SettingsSection>
 
           <SettingsSection
+            className={section === "refresh" ? undefined : "hidden"}
             id="settings-refresh"
             size="sm"
             title="Refresh"
@@ -304,6 +321,7 @@ export function SettingsScreen({ onReplaySetup }: { onReplaySetup?: () => void }
           </SettingsSection>
 
           <SettingsSection
+            className={section === "notifications" ? undefined : "hidden"}
             id="settings-notifications"
             size="sm"
             title="Notifications"
@@ -347,6 +365,7 @@ export function SettingsScreen({ onReplaySetup }: { onReplaySetup?: () => void }
           </SettingsSection>
 
           <SettingsSection
+            className={section === "about" ? undefined : "hidden"}
             id="settings-about"
             size="sm"
             title="Setup and version"

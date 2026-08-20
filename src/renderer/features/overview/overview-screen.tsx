@@ -1,4 +1,4 @@
-import { ArrowRight, CheckCircle2 } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import type { ReactNode } from "react";
 import type { DeploymentFilters, DeploymentState, UnifiedDeployment } from "@shared/models";
 import { EmptyState, ScreenError } from "@/components/common/empty-state";
@@ -8,6 +8,7 @@ import {
   PanelBody,
   PanelHeader,
   PanelRow,
+  PanelRowButton,
   Readout,
   ReadoutStrip,
 } from "@/components/ui/panel";
@@ -37,10 +38,9 @@ export function OverviewScreen() {
   const activeItems = items.filter((item) => item.state === "queued" || item.state === "building");
   const failedItems = items.filter((item) => item.state === "failed");
   const readyItems = items.filter((item) => item.state === "ready");
-  const attentionItems = [...activeItems, ...failedItems]
+  const recentDeployments = [...items]
     .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
-    .slice(0, 8);
-  const recentReady = readyItems.slice(0, 6);
+    .slice(0, 10);
   const projectItems = [...(projects.data?.vercel ?? []), ...(projects.data?.pages ?? [])]
     .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))
     .slice(0, 6);
@@ -80,8 +80,12 @@ export function OverviewScreen() {
           giant metric cards and uptime theatre. */}
       <Panel>
         <PanelHeader
-          title="Deployment pulse"
-          description={`Loaded snapshot across ${providerSummary || "connected providers"}`}
+          title="Deployment status"
+          description={
+            deployments.isLoading
+              ? `Refreshing ${providerSummary || "connected providers"}…`
+              : `Loaded snapshot across ${providerSummary || "connected providers"}`
+          }
           actions={
             <Button variant="ghost" size="sm" className="text-muted" onClick={() => showDeployments()}>
               All deployments
@@ -116,34 +120,34 @@ export function OverviewScreen() {
         ) : null}
       </Panel>
 
-      <div className="mt-4 grid items-start gap-4 grid-cols-[minmax(0,1.3fr)_minmax(300px,0.7fr)] max-[1180px]:grid-cols-1">
-        <div className="grid min-w-0 gap-4">
-          <Section
-            title="Needs attention"
-            count={activeItems.length + failedItems.length}
-            action={{ label: "View failed", onClick: () => showDeployments("failed") }}
-          >
-            {deployments.isLoading ? (
-              <LoadingRows count={4} />
-            ) : attentionItems.length === 0 ? (
-              <PanelRow
-                leading={<span className="grid size-7 place-items-center rounded-md bg-ready-soft text-ready-ink"><CheckCircle2 className="size-3.5" aria-hidden /></span>}
-                title="Nothing needs attention"
-                description="Queued, building, and failed deployments will surface here first."
+      <div className="mt-4 grid items-start gap-4 grid-cols-[minmax(0,1.55fr)_minmax(320px,0.75fr)] max-[1180px]:grid-cols-1">
+        <Section
+          title="Recent deployments"
+          count={deployments.isLoading ? undefined : items.length}
+          action={{ label: "View all", onClick: () => showDeployments() }}
+        >
+          {deployments.isLoading ? (
+            <LoadingRows count={7} />
+          ) : recentDeployments.length === 0 ? (
+            <EmptyState
+              size="inline"
+              title="No deployments loaded"
+              body="New Vercel, Pages, and Workers deployments will appear here."
+            />
+          ) : (
+            recentDeployments.map((item) => (
+              <DeploymentRow
+                key={`${item.provider}:${item.id}`}
+                item={item}
+                timeFormat={timeFormat}
+                onOpen={openDeployment}
               />
-            ) : (
-              attentionItems.map((item) => (
-                <DeploymentRow
-                  key={`${item.provider}:${item.id}`}
-                  item={item}
-                  timeFormat={timeFormat}
-                  onOpen={openDeployment}
-                />
-              ))
-            )}
-          </Section>
+            ))
+          )}
+        </Section>
 
-          <Section title="Local activity" action={{ label: "View activity", onClick: () => setScreen("activity") }}>
+        <div className="grid min-w-0 gap-4">
+          <Section title="Local activity" action={{ label: "View all", onClick: () => setScreen("activity") }}>
             {activity.isLoading ? (
               <LoadingRows count={3} />
             ) : activity.isError ? (
@@ -155,7 +159,7 @@ export function OverviewScreen() {
                 body="Retries, promotions, and DNS edits you make here will appear in this timeline."
               />
             ) : (
-              (activity.data ?? []).slice(0, 6).map((item) => (
+              (activity.data ?? []).slice(0, 4).map((item) => (
                 <PanelRow
                   key={item.id}
                   title={item.title}
@@ -168,36 +172,7 @@ export function OverviewScreen() {
               ))
             )}
           </Section>
-        </div>
-
-        <div className="grid min-w-0 gap-4">
-          <Section
-            title="Recently ready"
-            count={readyItems.length}
-            action={{ label: "View ready", onClick: () => showDeployments("ready") }}
-          >
-            {deployments.isLoading ? (
-              <LoadingRows count={4} />
-            ) : recentReady.length === 0 ? (
-              <EmptyState
-                size="inline"
-                title="Nothing shipped yet"
-                body="Successful deployments from the loaded snapshot land here."
-              />
-            ) : (
-              recentReady.map((item) => (
-                <DeploymentRow
-                  key={`${item.provider}:${item.id}`}
-                  item={item}
-                  timeFormat={timeFormat}
-                  onOpen={openDeployment}
-                  compact
-                />
-              ))
-            )}
-          </Section>
-
-          <Section title="Recently modified" action={{ label: "View projects", onClick: () => setScreen("projects") }}>
+          <Section title="Recently modified" action={{ label: "View all", onClick: () => setScreen("projects") }}>
             {projects.isLoading ? (
               <LoadingRows count={3} />
             ) : projects.isError ? (
@@ -209,7 +184,7 @@ export function OverviewScreen() {
                 body="Projects and Workers appear after the first refresh completes."
               />
             ) : (
-              projectItems.map((project) => (
+              projectItems.slice(0, 4).map((project) => (
                 <PanelRow
                   key={`${project.provider}:${project.id}`}
                   title={project.name}
@@ -266,24 +241,20 @@ function DeploymentRow({
   item,
   timeFormat,
   onOpen,
-  compact = false,
 }: {
   item: UnifiedDeployment;
   timeFormat: "relative" | "absolute";
   onOpen: (item: UnifiedDeployment) => void;
-  compact?: boolean;
 }) {
   const context = [providerLabel(item.provider), item.environment, item.branch].filter(Boolean).join(" · ");
 
   return (
-    <PanelRow
-      onActivate={() => onOpen(item)}
-      activateLabel={`Inspect ${item.projectName}`}
+    <PanelRowButton
+      onClick={() => onOpen(item)}
+      aria-label={`Inspect ${item.projectName}`}
       title={item.projectName}
       description={context}
-      // Every row in the compact panel is already "ready", so the pill would
-      // repeat the panel title.
-      leading={compact ? undefined : <StatusBadge state={item.state} />}
+      leading={<StatusBadge state={item.state} variant="plain" />}
       trailing={
         <>
           <time className="text-dense text-muted tabular" dateTime={item.createdAt}>

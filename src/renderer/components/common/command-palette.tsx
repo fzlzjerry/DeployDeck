@@ -16,7 +16,7 @@ import {
   Settings,
   Waypoints,
 } from "lucide-react";
-import { useMemo, type ReactNode } from "react";
+import { useMemo, useRef, type ReactNode } from "react";
 import { toast } from "sonner";
 import type { Screen, UnifiedDeployment } from "@shared/models";
 import { Kbd } from "@/components/ui/primitives";
@@ -35,6 +35,12 @@ const SCREEN_ICONS: Record<Screen, typeof Gauge> = {
   activity: History,
   settings: Settings,
 };
+
+let rememberedTrigger: HTMLElement | null = null;
+
+export function rememberCommandPaletteTrigger(element: HTMLElement): void {
+  rememberedTrigger = element;
+}
 
 export function CommandPalette() {
   const open = useUiStore((state) => state.commandOpen);
@@ -55,6 +61,7 @@ export function CommandPalette() {
   const listedWorkers = projects.data?.workers ?? [];
   const latestVercel = items.find((item) => item.provider === "vercel");
   const latestPages = items.find((item) => item.provider === "cloudflare-pages");
+  const returnFocus = useRef<HTMLElement | null>(rememberedTrigger);
 
   const runAction = async (label: string, fn: () => Promise<unknown>) => {
     try {
@@ -84,11 +91,35 @@ export function CommandPalette() {
   );
 
   return (
-    <Dialog.Root open={open} onOpenChange={setOpen}>
+    <Dialog.Root
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (!next) {
+          const target = returnFocus.current;
+          rememberedTrigger = null;
+          returnFocus.current = null;
+          window.setTimeout(() => {
+            const fallback = document.querySelector<HTMLElement>('button[aria-label="Open search and command palette"]');
+            (target?.isConnected ? target : fallback)?.focus();
+          }, 0);
+        }
+      }}
+    >
       <Dialog.Portal>
         <Dialog.Overlay className="modal-overlay" />
         <Dialog.Content
           aria-describedby="command-description"
+          onOpenAutoFocus={() => {
+            returnFocus.current = rememberedTrigger ?? (document.activeElement instanceof HTMLElement ? document.activeElement : null);
+          }}
+          onCloseAutoFocus={(event) => {
+            event.preventDefault();
+            window.setTimeout(() => {
+              const fallback = document.querySelector<HTMLElement>('button[aria-label="Open search and command palette"]');
+              (returnFocus.current?.isConnected ? returnFocus.current : fallback)?.focus();
+            }, 0);
+          }}
           className="command-content fixed top-24 left-1/2 z-[var(--z-modal)] w-[min(640px,calc(100vw-48px))] -translate-x-1/2 outline-none"
         >
           <Dialog.Title className="sr-only">Search DeployDeck</Dialog.Title>
@@ -100,6 +131,7 @@ export function CommandPalette() {
               <Search className="size-4 text-muted" strokeWidth={1.75} aria-hidden />
               <Command.Input
                 autoFocus
+                aria-label="Search commands"
                 className="min-w-0 flex-1 bg-transparent text-section text-ink outline-none placeholder:text-muted"
                 placeholder="Search screens, projects, deployments…"
               />

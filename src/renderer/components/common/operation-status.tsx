@@ -15,12 +15,20 @@ export function OperationStatus() {
   return (
     <div role="status" aria-live="polite" className="fixed right-4 bottom-4 z-[var(--z-toast)] w-80 rounded-panel bg-panel p-3 shadow-[var(--shadow-popover)]">
       <div className="flex items-start gap-2">
-        {active ? <LoaderCircle className="mt-0.5 size-3.5 shrink-0 animate-spin text-ember-ink motion-reduce:animate-none" aria-hidden /> : null}
+        {active ? <LoaderCircle className="mt-0.5 size-3.5 shrink-0 animate-spin text-brand-ink motion-reduce:animate-none" aria-hidden /> : null}
         <div className="min-w-0 flex-1"><p className="truncate text-dense font-medium text-ink">{operation.label}</p><p className="mt-0.5 text-label capitalize text-muted">{operation.phase}</p></div>
         {active ? <Button size="icon-sm" variant="ghost" aria-label="Cancel operation" onClick={() => void window.deployDeck.operations.cancel(operation.operationId)}><X aria-hidden /></Button> : <Button size="icon-sm" variant="ghost" aria-label="Dismiss operation" onClick={() => setOperation(undefined)}><X aria-hidden /></Button>}
       </div>
-      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-surface-2"><div className="h-full bg-ember transition-[width] duration-200 motion-reduce:transition-none" style={{ width: `${percent}%` }} /></div>
+      <div
+        className="mt-2 h-1.5 overflow-hidden rounded-full bg-surface-2"
+        role="progressbar"
+        aria-label={operation.label}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={Math.round(percent)}
+      >
+        <div className="h-full bg-brand transition-[width] duration-200 motion-reduce:transition-none" style={{ width: `${percent}%` }} />
+      </div>
     </div>
   );
 }
-

@@ -516,7 +516,7 @@ export function EnvironmentsScreen() {
                 />
               ) : (
                 <div className="overflow-auto">
-              <table className="data-table" aria-label="Environment variables">
+              <table className="data-table data-table-fixed min-w-[1050px]" aria-label="Environment variables">
                 <colgroup>
                   <col style={{ width: 48 }} />
                   <col style={{ width: 220 }} />

@@ -1,4 +1,5 @@
 import * as React from "react";
+import * as Dialog from "@radix-ui/react-dialog";
 import { cva, type VariantProps } from "class-variance-authority";
 import { X } from "lucide-react";
 import { Panel, PanelBody, PanelHeader, type PanelHeaderProps } from "@/components/ui/panel";
@@ -14,9 +15,8 @@ export interface PageHeaderProps extends Omit<React.ComponentPropsWithoutRef<"di
 }
 
 /**
- * The screen title block. Sits directly under the drag bar on the canvas, with
- * no hairline of its own: the toolbar (or content) below supplies the division,
- * so a screen never stacks three horizontal rules before its first row.
+ * Kumo-style screen header directly under the drag bar. It owns the base
+ * surface and bottom hairline; resource filters then live inside their card.
  */
 export const PageHeader = React.forwardRef<HTMLDivElement, PageHeaderProps>(function PageHeader(
   { title, description, meta, actions, className, ...props },
@@ -25,13 +25,13 @@ export const PageHeader = React.forwardRef<HTMLDivElement, PageHeaderProps>(func
   return (
     <div
       ref={ref}
-      className={cn("flex shrink-0 items-start justify-between gap-4 px-6 pt-1 pb-4", className)}
+      className={cn("flex shrink-0 items-start justify-between gap-4 border-b border-hairline bg-base px-6 py-4", className)}
       {...props}
     >
       <div className="min-w-0">
         <h1
           id="screen-title"
-          className="truncate text-title font-semibold tracking-[-0.02em] text-balance text-ink"
+          className="truncate text-title font-semibold text-balance text-ink"
         >
           {title}
         </h1>
@@ -55,9 +55,22 @@ export const ScreenToolbar = React.forwardRef<HTMLDivElement, React.ComponentPro
       <div
         ref={ref}
         className={cn(
-          "flex min-h-14 shrink-0 flex-wrap items-center gap-2 border-b border-line px-6 py-2.5",
+          "flex min-h-12 shrink-0 flex-wrap items-center gap-2 border-b border-hairline bg-base px-4 py-2",
           className,
         )}
+        {...props}
+      />
+    );
+  },
+);
+
+/** Canvas padding and height contract for Kumo-style resource list surfaces. */
+export const ResourceListFrame = React.forwardRef<HTMLDivElement, React.ComponentPropsWithoutRef<"div">>(
+  function ResourceListFrame({ className, ...props }, ref) {
+    return (
+      <div
+        ref={ref}
+        className={cn("flex min-h-0 flex-1 flex-col px-6 pt-4 pb-6", className)}
         {...props}
       />
     );
@@ -77,20 +90,93 @@ const inspectorPanelVariants = cva("inspector-panel flex min-h-0 shrink-0 flex-c
 
 export interface InspectorPanelProps
   extends React.ComponentPropsWithoutRef<"aside">,
-    VariantProps<typeof inspectorPanelVariants> {}
+    VariantProps<typeof inspectorPanelVariants> {
+  onDismiss?: () => void;
+  returnFocusTo?: HTMLElement | null;
+}
+
+function captureInspectorReturnFocus(): HTMLElement | null {
+  const active = document.activeElement;
+  if (active instanceof HTMLElement && active !== document.body) return active;
+  return document.querySelector<HTMLElement>(
+    '.data-table [aria-selected="true"], .data-table [tabindex="0"], button[aria-current="page"]',
+  );
+}
+
+function restoreInspectorFocus(preferred: HTMLElement | null): void {
+  const fallback = captureInspectorReturnFocus();
+  (preferred?.isConnected ? preferred : fallback)?.focus();
+}
 
 export const InspectorPanel = React.forwardRef<HTMLElement, InspectorPanelProps>(function InspectorPanel(
-  { className, size, ...props },
+  { className, size, onDismiss, returnFocusTo, children, "aria-label": ariaLabel, ...props },
   ref,
 ) {
-  const returnFocus = React.useRef<HTMLElement | null>(null);
+  const [overlay, setOverlay] = React.useState(() => window.matchMedia("(max-width: 1399px)").matches);
+  const returnFocus = React.useRef<HTMLElement | null>(returnFocusTo ?? captureInspectorReturnFocus());
   React.useEffect(() => {
-    returnFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const media = window.matchMedia("(max-width: 1399px)");
+    const update = () => setOverlay(media.matches);
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
+  React.useEffect(() => {
+    const target = returnFocus.current;
     return () => {
-      window.requestAnimationFrame(() => returnFocus.current?.focus());
+      window.setTimeout(() => restoreInspectorFocus(target), 0);
     };
   }, []);
-  return <aside ref={ref} className={cn(inspectorPanelVariants({ size }), className)} {...props} />;
+
+  const aside = (
+    <aside
+      ref={ref}
+      aria-label={ariaLabel}
+      className={cn(inspectorPanelVariants({ size }), className)}
+      {...props}
+    >
+      {children}
+    </aside>
+  );
+
+  if (!overlay || !onDismiss) return aside;
+
+  return (
+    <Dialog.Root
+      open
+      onOpenChange={(open) => {
+        if (!open) {
+          const target = returnFocus.current;
+          onDismiss();
+          window.setTimeout(() => restoreInspectorFocus(target), 0);
+        }
+      }}
+    >
+      <Dialog.Portal>
+        <Dialog.Overlay className="fixed inset-0 z-[var(--z-overlay)] bg-[var(--overlay)]" />
+        <Dialog.Content
+          asChild
+          onCloseAutoFocus={(event) => {
+            event.preventDefault();
+            window.setTimeout(() => restoreInspectorFocus(returnFocus.current), 0);
+          }}
+        >
+          {React.cloneElement(aside, {
+            className: cn(
+              aside.props.className,
+              "fixed inset-y-0 right-0 z-[var(--z-modal)] w-[min(560px,calc(100vw-32px))] border-l-0 bg-panel shadow-[var(--shadow-popover)]",
+            ),
+            style: { ...aside.props.style, width: "min(560px, calc(100vw - 32px))" },
+            children: (
+              <>
+                <Dialog.Title className="sr-only">{typeof ariaLabel === "string" ? ariaLabel : "Details"}</Dialog.Title>
+                {children}
+              </>
+            ),
+          })}
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
+  );
 });
 
 export interface InspectorHeaderProps extends Omit<React.ComponentPropsWithoutRef<"div">, "title"> {
@@ -108,7 +194,7 @@ export const InspectorHeader = React.forwardRef<HTMLDivElement, InspectorHeaderP
   React.useEffect(() => {
     if (!onClose) return;
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key !== "Escape" || event.defaultPrevented) return;
+      if (event.key !== "Escape" || event.defaultPrevented || document.querySelector('[role="dialog"]')) return;
       event.preventDefault();
       onClose();
     };

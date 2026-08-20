@@ -10,8 +10,8 @@ import { EmptyState, ScreenError } from "@/components/common/empty-state";
 import { DomainVerification } from "@/components/domains/domain-verification";
 import { WorkerTailPanel } from "@/components/logs/worker-tail";
 import { ProviderMark, StatusBadge } from "@/components/common/status-badge";
-import { DetailRow, InspectorHeader, InspectorPanel, ScreenToolbar } from "@/components/ui/layout";
-import { PanelRow } from "@/components/ui/panel";
+import { DetailRow, InspectorHeader, InspectorPanel, ResourceListFrame, ScreenToolbar } from "@/components/ui/layout";
+import { Panel, PanelRowButton } from "@/components/ui/panel";
 import {
   Button,
   Input,
@@ -152,6 +152,8 @@ export function ProjectsScreen() {
   return (
     <div className="relative flex h-full min-h-0">
       <div className="flex min-w-0 flex-1 flex-col">
+        <ResourceListFrame>
+        <Panel className="min-h-0 flex-1">
         <ScreenToolbar role="search" aria-label="Filter projects and workers">
           <div className="relative w-72">
             {/* Matches the Deployments search field, which had the icon and
@@ -170,19 +172,23 @@ export function ProjectsScreen() {
               onChange={(event) => setQuery(event.target.value)}
             />
           </div>
-          <div className="contents max-[1180px]:hidden">
+          <div className="contents max-[1479px]:hidden">
             <SelectControl ariaLabel="Filter by provider" className="w-44" value={provider} onValueChange={(value) => setProvider(value as ProviderFilter)} options={providerOptions} />
             {hasFilters ? <Button variant="ghost" size="sm" className="text-muted" onClick={clearFilters}>Reset filters</Button> : null}
           </div>
           <Popover.Root>
-            <Popover.Trigger asChild><Button size="sm" variant="outline" className="min-[1181px]:hidden"><SlidersHorizontal aria-hidden /> Filters{hasFilters ? " · active" : ""}</Button></Popover.Trigger>
+            <Popover.Trigger asChild><Button size="sm" variant="outline" className="min-[1480px]:hidden"><SlidersHorizontal aria-hidden /> Filters{hasFilters ? " · active" : ""}</Button></Popover.Trigger>
             <Popover.Portal><Popover.Content align="start" sideOffset={6} collisionPadding={8} className="z-[var(--z-dropdown)] w-64 space-y-3 rounded-panel bg-panel p-3 shadow-[var(--shadow-popover)]">
               <SelectControl ariaLabel="Filter by provider" className="w-full" value={provider} onValueChange={(value) => setProvider(value as ProviderFilter)} options={providerOptions} />
               {hasFilters ? <Button variant="ghost" size="sm" className="w-full justify-start text-muted" onClick={clearFilters}>Reset filters</Button> : null}
             </Popover.Content></Popover.Portal>
           </Popover.Root>
           <span className="ml-auto text-dense text-muted tabular" aria-live="polite">
-            {projects.isFetching && !projects.isLoading ? "Updating…" : `${entries.length} shown`}
+            {projects.isLoading
+              ? "Loading projects…"
+              : projects.isFetching
+                ? "Updating…"
+                : `${entries.length} shown`}
           </span>
         </ScreenToolbar>
 
@@ -203,6 +209,8 @@ export function ProjectsScreen() {
             timeFormat={prefs.data?.timeFormat ?? "relative"}
           />
         )}
+        </Panel>
+        </ResourceListFrame>
       </div>
 
       {selected ? <ProjectInspector selected={selected} onClose={() => setSelected(undefined)} /> : null}
@@ -369,7 +377,7 @@ function ProjectInspector({ selected, onClose }: { selected: ProjectSelection; o
     : selected.dashboardUrl;
 
   return (
-    <InspectorPanel size="md" className="deployment-inspector" aria-label={`${title} inspector`}>
+    <InspectorPanel size="md" className="deployment-inspector" onDismiss={onClose} aria-label={`${title} inspector`}>
       <InspectorHeader
         title={title}
         subtitle={subtitle}
@@ -638,10 +646,10 @@ function ProjectDeployments({ project }: { project: UnifiedProject }) {
   return (
     <InspectorList>
       {items.map((item) => (
-        <PanelRow
+        <PanelRowButton
           key={item.id}
-          onActivate={() => openDeployment(item)}
-          activateLabel={`Inspect deployment ${item.id}`}
+          onClick={() => openDeployment(item)}
+          aria-label={`Inspect deployment ${item.id}`}
           leading={<StatusBadge state={item.state} />}
           title={item.commitMessage ?? item.id}
           trailing={
@@ -1773,7 +1781,7 @@ function InlineError({ message, onRetry }: { message: string; onRetry: () => voi
 }
 
 /**
- * Full-bleed divided list for inspector tabs. Rows are `PanelRow`, so hover and
+ * Full-bleed divided list for inspector tabs. Rows are `PanelRowButton`, so hover and
  * focus reach the panel edges and every list in here looks the same. This
  * replaces nine hand-rolled `divide-y` + `-mx-2 flex min-h-10` variants.
  */

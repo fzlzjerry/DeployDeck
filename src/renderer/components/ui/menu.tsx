@@ -8,14 +8,13 @@ import { cn } from "@/lib/cn";
  * "Copy value" item cannot look different depending on how it was opened.
  */
 const menuContentClass = cn(
-  "z-[var(--z-dropdown)] min-w-48 overflow-hidden rounded-control bg-panel p-1 text-dense text-ink",
-  "shadow-[var(--shadow-popover)] popover-motion",
+  "z-[var(--z-dropdown)] min-w-48 overflow-hidden rounded-panel bg-panel p-1 text-body text-ink",
+  "shadow-[var(--shadow-popover)]",
 );
 
 const menuItemClass = cn(
-  "flex h-8 cursor-default select-none items-center gap-2 rounded-md px-2 text-dense outline-none",
-  "transition-colors duration-100 ease-[var(--ease-out-expo)] motion-reduce:transition-none",
-  "data-[highlighted]:bg-surface-2 data-[disabled]:pointer-events-none data-[disabled]:opacity-40",
+  "flex h-8 cursor-default select-none items-center gap-2 rounded-control px-2 text-body outline-none",
+  "data-[highlighted]:bg-tint data-[disabled]:pointer-events-none data-[disabled]:opacity-40",
 );
 
 const menuSeparatorClass = "-mx-1 my-1 h-px bg-line";
@@ -59,13 +58,15 @@ export const DropdownMenuContent = React.forwardRef<
   React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Content>
 >(function DropdownMenuContent({ className, sideOffset = 4, ...props }, ref) {
   return (
-    <DropdownMenuPrimitive.Content
-      ref={ref}
-      sideOffset={sideOffset}
-      collisionPadding={8}
-      className={cn(menuContentClass, "origin-[var(--radix-dropdown-menu-content-transform-origin)]", className)}
-      {...props}
-    />
+    <DropdownMenuPrimitive.Portal>
+      <DropdownMenuPrimitive.Content
+        ref={ref}
+        sideOffset={sideOffset}
+        collisionPadding={8}
+        className={cn(menuContentClass, "origin-[var(--radix-dropdown-menu-content-transform-origin)]", className)}
+        {...props}
+      />
+    </DropdownMenuPrimitive.Portal>
   );
 });
 

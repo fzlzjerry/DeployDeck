@@ -107,7 +107,7 @@ const dark = { ...light, ...parseBlock(".dark") };
 
 /** Every opaque surface that body or status text is allowed to land on. */
 const SURFACES = ["canvas", "bg", "panel", "panel-header", "surface", "surface-2", "surface-sunken"];
-const STATUSES = ["ready", "failed", "warning", "building", "queued", "canceled", "ember"];
+const STATUSES = ["ready", "failed", "warning", "building", "queued", "canceled", "brand", "ember"];
 
 /** Every check is `{ fg, bg, min, label }`. 4.5 for text, 3.0 for UI boundaries. */
 function buildChecks() {
@@ -129,6 +129,7 @@ function buildChecks() {
   }
 
   // Text sitting on a filled control.
+  checks.push({ fg: "brand-fg", bg: "brand", min: 4.5, group: "filled control" });
   checks.push({ fg: "ember-fg", bg: "ember", min: 4.5, group: "filled control" });
   checks.push({ fg: "failed-fg", bg: "failed", min: 4.5, group: "filled control" });
 

@@ -1,12 +1,15 @@
 import type { UnifiedDomain } from "@shared/models";
 import { domainNeedsDns } from "@shared/domain-dns";
+import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { TriangleAlert } from "lucide-react";
+import { Copy, ExternalLink, MoreHorizontal, Pencil, Trash2, TriangleAlert } from "lucide-react";
 import { Fragment, useEffect, useRef, useState } from "react";
 import { EmptyState, ScreenError } from "@/components/common/empty-state";
 import { DomainVerification } from "@/components/domains/domain-verification";
 import { ProviderMark } from "@/components/common/status-badge";
-import { InspectorHeader, InspectorPanel, ScreenToolbar } from "@/components/ui/layout";
+import { InspectorHeader, InspectorPanel, ResourceListFrame, ScreenToolbar } from "@/components/ui/layout";
+import { DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/menu";
+import { Panel } from "@/components/ui/panel";
 import { Badge, type BadgeProps, Button, Input, SelectControl, TableSkeleton } from "@/components/ui/primitives";
 import { useConnection } from "@/hooks/use-connection";
 import { useProjects, useZones } from "@/hooks/use-data";
@@ -28,6 +31,7 @@ export function DomainsScreen() {
   const [zoneId, setZoneId] = useState("");
   const [adding, setAdding] = useState(false);
   const [selected, setSelected] = useState<UnifiedDomain>();
+  const [inspectorReturnFocus, setInspectorReturnFocus] = useState<HTMLElement | null>(null);
   const zones = useZones();
 
   const query = useQuery({
@@ -138,9 +142,34 @@ export function DomainsScreen() {
     }
   };
 
+  const requestRemove = (domain: UnifiedDomain) => {
+    ask({
+      title: "Remove domain",
+      body: `${domain.name} will be detached from ${domain.projectName}.`,
+      actionLabel: "Remove",
+      onConfirm: async () => {
+        try {
+          if (domain.provider === "vercel") {
+            await window.deployDeck.vercel.removeDomain(domain.projectId, domain.name);
+          } else if (domain.provider === "cloudflare-pages") {
+            await window.deployDeck.cloudflare.removePagesDomain(domain.accountId, domain.projectName, domain.name);
+          } else {
+            await window.deployDeck.cloudflare.detachWorkerDomain(domain.accountId, domain.id);
+          }
+          toast.success("Domain removed");
+          await client.invalidateQueries({ queryKey: ["domains"] });
+        } catch (error) {
+          toast.error(errorMessage(error));
+        }
+      },
+    });
+  };
+
   return (
     <div className="flex h-full min-h-0">
       <div className="flex min-w-0 flex-1 flex-col">
+      <ResourceListFrame>
+      <Panel className="min-h-0 flex-1">
       <ScreenToolbar>
         <Input
           ref={nameInputRef}
@@ -175,6 +204,7 @@ export function DomainsScreen() {
         ) : null}
         <Button
           size="sm"
+          variant="accent"
           loading={adding}
           disabled={!name.trim() || !target || !canWriteTarget || (workerTarget && !zoneId)}
           onClick={() => void addDomain()}
@@ -226,13 +256,13 @@ export function DomainsScreen() {
             }
           />
         ) : (
-          <table className="data-table" aria-label="Domains">
+          <table className="data-table data-table-fixed min-w-[850px]" aria-label="Domains">
             <colgroup>
               <col />
               <col style={{ width: 124 }} />
               <col style={{ width: 180 }} />
-              <col style={{ width: 150 }} />
-              <col style={{ width: 216 }} />
+              <col style={{ width: 160 }} />
+              <col style={{ width: 56 }} />
             </colgroup>
             <thead>
               <tr>
@@ -256,66 +286,14 @@ export function DomainsScreen() {
                     <DomainStatus domain={domain} />
                   </td>
                   <td>
-                    <div className="flex justify-end gap-1">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        aria-label={`Open ${domain.name}`}
-                        onClick={() => void window.deployDeck.shell.openHttps(`https://${domain.name}`)}
-                      >
-                        Open
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        aria-label={`Copy ${domain.name}`}
-                        onClick={() => void copyText(domain.name)}
-                      >
-                        Copy
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        aria-label={`Edit ${domain.name}`}
-                        onClick={() => setSelected(domain)}
-                      >
-                        Edit
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="text-failed-ink hover:bg-failed-soft"
-                        aria-label={`Remove ${domain.name}`}
-                        onClick={() =>
-                          ask({
-                            title: "Remove domain",
-                            body: `${domain.name} will be detached from ${domain.projectName}.`,
-                            actionLabel: "Remove",
-                            onConfirm: async () => {
-                              try {
-                                if (domain.provider === "vercel") {
-                                  await window.deployDeck.vercel.removeDomain(domain.projectId, domain.name);
-                                } else if (domain.provider === "cloudflare-pages") {
-                                  await window.deployDeck.cloudflare.removePagesDomain(
-                                    domain.accountId,
-                                    domain.projectName,
-                                    domain.name,
-                                  );
-                                } else {
-                                  await window.deployDeck.cloudflare.detachWorkerDomain(domain.accountId, domain.id);
-                                }
-                                toast.success("Domain removed");
-                                await client.invalidateQueries({ queryKey: ["domains"] });
-                              } catch (error) {
-                                toast.error(errorMessage(error));
-                              }
-                            },
-                          })
-                        }
-                      >
-                        Remove
-                      </Button>
-                    </div>
+                    <DomainActions
+                      domain={domain}
+                      onEdit={(trigger) => {
+                        setInspectorReturnFocus(trigger);
+                        setSelected(domain);
+                      }}
+                      onRemove={() => requestRemove(domain)}
+                    />
                   </td>
                 </tr>
                 {/* Verification records live in their own recessed sub-row.
@@ -337,12 +315,19 @@ export function DomainsScreen() {
           </table>
         )}
       </div>
+      </Panel>
+      </ResourceListFrame>
       </div>
       {selected ? (
         <DomainInspector
+          key={`${selected.provider}:${selected.id}`}
           domain={selected}
           projects={projects.data?.vercel ?? []}
-          onClose={() => setSelected(undefined)}
+          returnFocusTo={inspectorReturnFocus}
+          onClose={() => {
+            setSelected(undefined);
+            setInspectorReturnFocus(null);
+          }}
           onUpdated={async (domain) => {
             setSelected(domain);
             await client.invalidateQueries({ queryKey: ["domains"] });
@@ -353,9 +338,46 @@ export function DomainsScreen() {
   );
 }
 
-function DomainInspector({ domain, projects, onClose, onUpdated }: {
+function DomainActions({ domain, onEdit, onRemove }: { domain: UnifiedDomain; onEdit: (trigger: HTMLButtonElement | null) => void; onRemove: () => void }) {
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  return (
+    <div className="flex justify-end">
+      <DropdownMenu.Root>
+        <DropdownMenu.Trigger asChild>
+          <Button ref={triggerRef} size="icon-sm" variant="ghost" aria-label={`Actions for ${domain.name}`}>
+            <MoreHorizontal aria-hidden />
+          </Button>
+        </DropdownMenu.Trigger>
+        <DropdownMenuContent
+          align="end"
+          onCloseAutoFocus={(event) => {
+            event.preventDefault();
+            window.setTimeout(() => triggerRef.current?.focus(), 0);
+          }}
+        >
+          <DropdownMenuItem onSelect={() => void window.deployDeck.shell.openHttps(`https://${domain.name}`)}>
+            <ExternalLink aria-hidden /> Open domain
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => void copyText(domain.name)}>
+            <Copy aria-hidden /> Copy domain
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => onEdit(triggerRef.current)}>
+            <Pencil aria-hidden /> Edit domain
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem destructive onSelect={onRemove}>
+            <Trash2 aria-hidden /> Remove domain
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu.Root>
+    </div>
+  );
+}
+
+function DomainInspector({ domain, projects, returnFocusTo, onClose, onUpdated }: {
   domain: UnifiedDomain;
   projects: Array<{ id: string; name: string }>;
+  returnFocusTo?: HTMLElement | null;
   onClose: () => void;
   onUpdated: (domain: UnifiedDomain) => Promise<void>;
 }) {
@@ -401,7 +423,7 @@ function DomainInspector({ domain, projects, onClose, onUpdated }: {
   };
 
   return (
-    <InspectorPanel size="md" className="deployment-inspector overflow-hidden" aria-label={`${domain.name} domain inspector`}>
+    <InspectorPanel size="md" className="deployment-inspector overflow-hidden" onDismiss={onClose} returnFocusTo={returnFocusTo} aria-label={`${domain.name} domain inspector`}>
       <InspectorHeader title={domain.name} subtitle={`${domain.projectName} · ${domain.provider}`} onClose={onClose} closeLabel={`Close ${domain.name} inspector`} />
       <div className="min-h-0 flex-1 space-y-5 overflow-auto p-4">
         <dl className="divide-y divide-line rounded-panel border border-line bg-panel">
@@ -438,16 +460,22 @@ function DomainInspector({ domain, projects, onClose, onUpdated }: {
  */
 function DomainStatus({ domain }: { domain: UnifiedDomain }) {
   const raw = (domain.status ?? "").toLowerCase();
-  const label = domain.status || (domain.verified ? "Verified" : "Unknown");
-
   let variant: NonNullable<BadgeProps["variant"]> = "neutral";
-  if (domain.verified || /^(active|verified|ready|valid)/.test(raw)) variant = "ready";
-  else if (/(pending|initializing|verifying|provisioning|deploying)/.test(raw)) variant = "building";
-  else if (/(error|fail|invalid|misconfigur|moved|blocked|deactivat)/.test(raw)) variant = "failed";
+  let label = "Unknown";
+  if (domain.verified || /^(active|attached|verified|ready|valid)/.test(raw)) {
+    variant = "ready";
+    label = domain.verified ? "Verified" : "Active";
+  } else if (/(pending|initializing|verifying|provisioning|deploying)/.test(raw)) {
+    variant = "building";
+    label = "Pending";
+  } else if (/(error|fail|invalid|misconfigur|moved|blocked|deactivat)/.test(raw)) {
+    variant = "failed";
+    label = "Error";
+  }
 
   return (
-    <Badge variant={variant} dot pulse={variant === "building"} className="capitalize">
-      {label}
+    <Badge variant={variant} dot pulse={variant === "building"} className="max-w-full capitalize">
+      <span className="truncate">{label}</span>
     </Badge>
   );
 }

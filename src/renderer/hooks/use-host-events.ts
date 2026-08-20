@@ -65,8 +65,11 @@ export function useHostEvents() {
       }),
     ];
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setCommandOpen(false);
+      if (
+        event.key === "Escape" &&
+        !event.defaultPrevented &&
+        !document.querySelector('[role="dialog"], [role="menu"], [data-radix-popper-content-wrapper]')
+      ) {
         closeInspector();
       }
     };

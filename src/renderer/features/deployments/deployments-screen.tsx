@@ -8,8 +8,9 @@ import { ProviderMark, StatusBadge } from "@/components/common/status-badge";
 import { EmptyState, ScreenError } from "@/components/common/empty-state";
 import { LogViewer } from "@/components/logs/log-viewer";
 import { WorkerTailPanel } from "@/components/logs/worker-tail";
-import { DetailRow, InspectorHeader, InspectorPanel, ScreenToolbar } from "@/components/ui/layout";
+import { DetailRow, InspectorHeader, InspectorPanel, ResourceListFrame, ScreenToolbar } from "@/components/ui/layout";
 import { ContextMenuContent, ContextMenuItem as MenuItem } from "@/components/ui/menu";
+import { Panel } from "@/components/ui/panel";
 import {
   Badge,
   Button,
@@ -102,6 +103,8 @@ export function DeploymentsScreen() {
   return (
     <div className="flex h-full min-h-0">
       <div className="flex min-w-0 flex-1 flex-col">
+        <ResourceListFrame>
+        <Panel className="min-h-0 flex-1">
         <ScreenToolbar>
           <div className="relative min-w-56 flex-1 max-w-72">
             <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted" aria-hidden />
@@ -114,12 +117,12 @@ export function DeploymentsScreen() {
               onChange={(event) => setSearch(event.target.value)}
             />
           </div>
-          <div className="contents max-[1180px]:hidden">
+          <div className="contents max-[1479px]:hidden">
             <DeploymentFilterControls filters={filters} providerOptions={providerOptions} setFilters={setFilters} />
             {activeFilterCount > 0 ? <Button variant="ghost" size="sm" className="text-muted" onClick={resetFilters}><RotateCcw aria-hidden /> Reset {activeFilterCount}</Button> : null}
           </div>
           <Popover.Root>
-            <Popover.Trigger asChild><Button size="sm" variant="outline" className="min-[1181px]:hidden"><SlidersHorizontal aria-hidden /> Filters{activeFilterCount ? ` · ${activeFilterCount}` : ""}</Button></Popover.Trigger>
+            <Popover.Trigger asChild><Button size="sm" variant="outline" className="min-[1480px]:hidden"><SlidersHorizontal aria-hidden /> Filters{activeFilterCount ? ` · ${activeFilterCount}` : ""}</Button></Popover.Trigger>
             <Popover.Portal><Popover.Content align="start" sideOffset={6} collisionPadding={8} className="z-[var(--z-dropdown)] w-72 space-y-3 rounded-panel bg-panel p-3 shadow-[var(--shadow-popover)]">
               <DeploymentFilterControls filters={filters} providerOptions={providerOptions} setFilters={setFilters} stacked />
               {activeFilterCount > 0 ? <Button variant="ghost" size="sm" className="w-full justify-start text-muted" onClick={resetFilters}><RotateCcw aria-hidden /> Reset {activeFilterCount} filters</Button> : null}
@@ -132,7 +135,7 @@ export function DeploymentsScreen() {
                 {items.length} {items.length === 1 ? "deployment" : "deployments"}
               </span>
             )}
-            <Button size="sm" onClick={() => openCreate("deployment")}><Plus aria-hidden /> Deploy</Button>
+            <Button size="sm" variant="accent" onClick={() => openCreate("deployment")}><Plus aria-hidden /> Deploy</Button>
           </div>
         </ScreenToolbar>
         {query.isError ? (
@@ -161,9 +164,11 @@ export function DeploymentsScreen() {
             </Button>
           </div>
         ) : null}
+        </Panel>
+        </ResourceListFrame>
       </div>
       {inspectorOpen && selected ? (
-        <InspectorPanel size="md" className="deployment-inspector">
+        <InspectorPanel size="md" className="deployment-inspector" onDismiss={closeInspector} aria-label={`${selected.projectName} deployment inspector`}>
           <InspectorHeader
             title={selected.projectName}
             subtitle={`${selected.environment} · ${selected.provider.replace("cloudflare-", "")}`}
@@ -196,24 +201,23 @@ function DeploymentFilterControls({ filters, providerOptions, setFilters, stacke
  * One source of truth for the column rails, so the loading skeleton cannot
  * drift out of alignment with the real rows.
  *
- * Widths sum to TABLE_MIN_WIDTH. Because the table is `table-layout: fixed`
- * at `width: 100%`, a wider window distributes the surplus proportionally, so
- * Project and URL — the two columns that actually need room — grow with it.
+ * The fixed table can compress to a 980px resource surface. Column widths are
+ * relative rails rather than a reason to force the whole window wider.
  */
 const COLUMNS = [
-  { key: "status", label: "Status", width: 104 },
-  { key: "provider", label: "Provider", width: 104 },
-  { key: "project", label: "Project", width: 180 },
-  { key: "env", label: "Env", width: 112 },
-  { key: "branch", label: "Branch", width: 132 },
-  { key: "commit", label: "Commit", width: 96 },
-  { key: "author", label: "Author", width: 104 },
-  { key: "time", label: "Time", width: 112, numeric: true },
-  { key: "duration", label: "Duration", width: 88, numeric: true },
-  { key: "url", label: "URL", width: 168 },
+  { key: "status", label: "Status", width: 90 },
+  { key: "provider", label: "Provider", width: 95 },
+  { key: "project", label: "Project", width: 160 },
+  { key: "env", label: "Env", width: 100 },
+  { key: "branch", label: "Branch", width: 110 },
+  { key: "commit", label: "Commit", width: 90 },
+  { key: "author", label: "Author", width: 90 },
+  { key: "time", label: "Time", width: 90, numeric: true },
+  { key: "duration", label: "Duration", width: 70, numeric: true },
+  { key: "url", label: "URL", width: 85 },
 ] as const;
 
-const TABLE_MIN_WIDTH = COLUMNS.reduce((total, column) => total + column.width, 0);
+const TABLE_MIN_WIDTH = 980;
 
 function ColumnRails() {
   return (
@@ -281,13 +285,12 @@ const ENVIRONMENT_LABEL: Record<string, string> = {
   production: "Production",
   preview: "Preview",
   development: "Development",
+  unknown: "Unknown",
 };
 
 function EnvironmentCell({ environment }: { environment: string }) {
   const label = ENVIRONMENT_LABEL[environment] ?? environment;
-  // Production is the one environment where the distinction carries risk, so
-  // it is the only one that spends the accent.
-  return <Badge variant={environment === "production" ? "accent" : "outline"}>{label}</Badge>;
+  return <Badge variant="outline" className={environment === "production" ? "text-ink" : undefined}>{label}</Badge>;
 }
 
 function DeploymentTable({ items }: { items: UnifiedDeployment[] }) {
@@ -346,7 +349,7 @@ function DeploymentTable({ items }: { items: UnifiedDeployment[] }) {
                     openDeployment(item);
                   }}
                 >
-                  <td><StatusBadge state={item.state} /></td>
+                  <td><StatusBadge state={item.state} variant="plain" /></td>
                   <td className="truncate"><ProviderMark provider={item.provider} showIcon={prefs.data?.showProviderIcons} /></td>
                   <td className="truncate font-medium">{item.projectName}</td>
                   <td><EnvironmentCell environment={item.environment} /></td>

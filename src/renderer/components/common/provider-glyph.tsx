@@ -35,7 +35,8 @@ export function ProviderTile({ brand, className }: { brand: ProviderBrand; class
   return (
     <span
       className={cn(
-        "grid size-9 shrink-0 place-items-center rounded-[10px] bg-bg text-ink",
+        "grid size-9 shrink-0 place-items-center rounded-control bg-bg",
+        brand === "cloudflare" ? "text-ember-ink" : "text-ink",
         "shadow-[inset_0_0_0_1px_var(--line)]",
         className,
       )}

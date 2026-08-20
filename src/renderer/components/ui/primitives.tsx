@@ -28,15 +28,15 @@ const controlFocus =
  * the one-lamp budget on a control that cannot be pressed.
  */
 const disabledFill = cn(
-  "disabled:bg-surface-2 disabled:text-subtle disabled:active:translate-y-0",
-  "data-[disabled=true]:bg-surface-2 data-[disabled=true]:text-subtle",
+  "disabled:bg-recessed disabled:text-subtle disabled:active:translate-y-0",
+  "data-[disabled=true]:bg-recessed data-[disabled=true]:text-subtle",
 );
 const disabledQuiet = "disabled:opacity-45 data-[disabled=true]:opacity-45";
 
 const buttonVariants = cva(
   cn(
-    "inline-flex shrink-0 select-none items-center justify-center gap-1.5 whitespace-nowrap rounded-control font-medium",
-    "transition-[color,background-color,border-color,opacity,transform] duration-150 ease-[var(--ease-out-expo)]",
+    "relative inline-flex shrink-0 select-none items-center justify-center gap-1.5 whitespace-nowrap rounded-control font-medium",
+    "transition-[opacity,transform] duration-150 ease-[var(--ease-out-expo)]",
     "disabled:pointer-events-none data-[disabled=true]:pointer-events-none",
     "motion-reduce:transition-none [&_svg]:pointer-events-none [&_svg]:shrink-0",
     controlFocus,
@@ -45,13 +45,17 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default: cn(
-          "bg-ember text-ember-fg hover:bg-ember-hover active:translate-y-px active:bg-ember-active",
+          "bg-ink text-bg hover:bg-ink/86 active:translate-y-px active:bg-ink/76",
           disabledFill,
         ),
-        secondary: cn("bg-surface-2 text-ink hover:bg-surface-3 active:translate-y-px", disabledQuiet),
-        ghost: cn("text-ink hover:bg-surface-2 active:bg-surface-3", disabledQuiet),
+        accent: cn(
+          "bg-brand text-brand-fg hover:bg-brand-hover active:translate-y-px active:bg-brand-active",
+          disabledFill,
+        ),
+        secondary: cn("bg-control text-ink ring-1 ring-hairline hover:bg-tint active:translate-y-px", disabledQuiet),
+        ghost: cn("text-ink hover:bg-tint active:bg-recessed", disabledQuiet),
         outline: cn(
-          "border border-line bg-control text-ink hover:bg-control-hover active:bg-surface-2",
+          "border border-hairline bg-control text-ink hover:bg-tint active:bg-recessed",
           disabledQuiet,
         ),
         danger: cn("bg-failed text-failed-fg hover:bg-failed-hover active:translate-y-px", disabledFill),
@@ -59,7 +63,7 @@ const buttonVariants = cva(
       },
       size: {
         default: "h-[34px] px-3 text-body [&_svg]:size-4",
-        sm: "h-7 px-2.5 text-dense [&_svg]:size-3.5",
+        sm: "h-8 px-2.5 text-body [&_svg]:size-3.5",
         lg: "h-10 px-4 text-body [&_svg]:size-4",
         icon: "size-[34px] p-0 [&_svg]:size-4",
         "icon-sm": "size-7 p-0 [&_svg]:size-3.5",
@@ -78,10 +82,17 @@ export interface ButtonProps
 }
 
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(function Button(
-  { className, variant, size, asChild = false, loading = false, disabled = false, type, children, ...props },
+  { className, variant, size, asChild = false, loading = false, disabled = false, type, children, onClick, ...props },
   ref,
 ) {
   const blocked = disabled || loading;
+  const handleClick = (event: React.MouseEvent<HTMLButtonElement>) => {
+    if (blocked) {
+      event.preventDefault();
+      return;
+    }
+    onClick?.(event);
+  };
 
   if (asChild) {
     return (
@@ -89,8 +100,9 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(function 
         className={cn(buttonVariants({ variant, size }), className)}
         aria-busy={loading || undefined}
         aria-disabled={blocked || undefined}
-        data-disabled={blocked || undefined}
+        data-disabled={disabled || undefined}
         data-loading={loading || undefined}
+        onClick={handleClick}
         {...props}
       >
         {children}
@@ -103,13 +115,16 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(function 
       ref={ref}
       type={type ?? "button"}
       className={cn(buttonVariants({ variant, size }), className)}
-      disabled={blocked}
+      disabled={disabled}
       aria-busy={loading || undefined}
+      aria-disabled={blocked || undefined}
+      data-disabled={disabled || undefined}
       data-loading={loading || undefined}
+      onClick={handleClick}
       {...props}
     >
-      {loading ? <LoaderCircle aria-hidden="true" className="animate-spin motion-reduce:animate-none" /> : null}
-      {children}
+      {loading ? <LoaderCircle aria-hidden="true" className="absolute animate-spin motion-reduce:animate-none" /> : null}
+      <span className={cn("inline-flex items-center gap-1.5", loading && "opacity-0")}>{children}</span>
     </button>
   );
 });
@@ -122,8 +137,8 @@ export const Input = React.forwardRef<HTMLInputElement, React.ComponentPropsWith
     <input
       ref={ref}
       className={cn(
-        "h-[34px] w-full rounded-control border border-line bg-control px-3 text-body text-ink placeholder:text-muted",
-        "transition-[color,background-color,border-color,box-shadow] duration-150 ease-[var(--ease-out-expo)]",
+        "h-[34px] w-full rounded-control border border-hairline bg-control px-3 text-body text-ink placeholder:text-muted",
+        "transition-shadow duration-150 ease-[var(--ease-out-expo)]",
         "hover:border-line-strong disabled:cursor-not-allowed disabled:bg-surface disabled:opacity-55",
         "aria-invalid:border-failed aria-invalid:ring-2 aria-invalid:ring-failed/20",
         "motion-reduce:transition-none",
@@ -141,8 +156,8 @@ export const Textarea = React.forwardRef<HTMLTextAreaElement, React.ComponentPro
       <textarea
         ref={ref}
         className={cn(
-          "min-h-20 w-full resize-y rounded-control border border-line bg-control px-3 py-2 text-body text-ink placeholder:text-muted",
-          "transition-[color,background-color,border-color,box-shadow] duration-150 ease-[var(--ease-out-expo)]",
+          "min-h-20 w-full resize-y rounded-control border border-hairline bg-control px-3 py-2 text-body text-ink placeholder:text-muted",
+          "transition-shadow duration-150 ease-[var(--ease-out-expo)]",
           "hover:border-line-strong disabled:cursor-not-allowed disabled:bg-surface disabled:opacity-55",
           "aria-invalid:border-failed aria-invalid:ring-2 aria-invalid:ring-failed/20",
           "motion-reduce:transition-none",
@@ -162,7 +177,7 @@ export const Label = React.forwardRef<
   return (
     <LabelPrimitive.Root
       ref={ref}
-      className={cn("text-label font-medium text-muted peer-disabled:cursor-not-allowed peer-disabled:opacity-55", className)}
+    className={cn("text-body font-medium text-muted peer-disabled:cursor-not-allowed peer-disabled:opacity-55", className)}
       {...props}
     />
   );
@@ -175,21 +190,21 @@ export const Label = React.forwardRef<
  */
 const badgeVariants = cva(
   cn(
-    "inline-flex h-[22px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md border px-2",
+    "inline-flex h-6 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md border px-2",
     "text-label font-medium",
   ),
   {
     variants: {
       variant: {
-        neutral: "border-line bg-surface-2 text-muted",
-        outline: "border-line bg-transparent text-muted",
+        neutral: "border-hairline bg-recessed text-muted",
+        outline: "border-hairline bg-transparent text-muted",
         ready: "border-ready-ink/25 bg-ready-soft text-ready-ink",
         failed: "border-failed-ink/25 bg-failed-soft text-failed-ink",
         building: "border-building-ink/25 bg-building-soft text-building-ink",
         queued: "border-queued-ink/25 bg-queued-soft text-queued-ink",
         canceled: "border-canceled-ink/25 bg-canceled-soft text-canceled-ink",
         warning: "border-warning-ink/25 bg-warning-soft text-warning-ink",
-        accent: "border-ember-ink/25 bg-ember-soft text-ember-ink",
+        accent: "border-brand-ink/25 bg-brand-soft text-brand-ink",
       },
     },
     defaultVariants: { variant: "neutral" },
@@ -246,7 +261,7 @@ export const Skeleton = React.forwardRef<HTMLDivElement, React.ComponentPropsWit
     <div
       ref={ref}
       aria-hidden={ariaHidden}
-      className={cn("animate-pulse rounded-md bg-surface-2 motion-reduce:animate-none", className)}
+      className={cn("animate-pulse rounded-md bg-recessed motion-reduce:animate-none", className)}
       {...props}
     />
   );
@@ -320,12 +335,12 @@ export function SelectControl({
       <SelectPrimitive.Trigger
         aria-label={ariaLabel}
         className={cn(
-          "inline-flex min-w-0 items-center justify-between gap-2 rounded-control border border-line bg-control text-left text-ink",
-          "transition-[color,background-color,border-color,box-shadow] duration-150 ease-[var(--ease-out-expo)]",
+          "inline-flex min-w-0 items-center justify-between gap-2 rounded-control border border-hairline bg-control text-left text-ink",
+          "transition-shadow duration-150 ease-[var(--ease-out-expo)]",
           "hover:border-line-strong hover:bg-control-hover data-[placeholder]:text-muted",
           "disabled:cursor-not-allowed disabled:opacity-45 motion-reduce:transition-none",
           controlFocus,
-          size === "sm" ? "h-7 px-2 text-dense" : "h-[34px] px-3 text-body",
+          size === "sm" ? "h-8 px-2.5 text-body" : "h-[34px] px-3 text-body",
           className,
         )}
       >
@@ -346,7 +361,7 @@ export function SelectControl({
           className={cn(
             "z-[var(--z-dropdown)] max-h-[min(320px,var(--radix-select-content-available-height))]",
             "min-w-[var(--radix-select-trigger-width)]",
-            "overflow-hidden rounded-control bg-panel p-1 text-ink shadow-[var(--shadow-popover)]",
+            "overflow-hidden rounded-panel bg-panel p-1 text-ink shadow-[var(--shadow-popover)]",
             "popover-motion origin-[var(--radix-select-content-transform-origin)]",
           )}
         >
@@ -357,13 +372,13 @@ export function SelectControl({
                 value={option.value}
                 disabled={option.disabled}
                 className={cn(
-                  "relative flex h-8 cursor-default select-none items-center rounded-md px-2 pr-7 text-dense outline-none",
-                  "data-[highlighted]:bg-surface-2 data-[disabled]:pointer-events-none data-[disabled]:opacity-40",
+                  "relative flex h-8 cursor-default select-none items-center rounded-control px-2 pr-7 text-body outline-none",
+                  "data-[highlighted]:bg-tint data-[disabled]:pointer-events-none data-[disabled]:opacity-40",
                 )}
               >
                 <SelectPrimitive.ItemText>{option.label}</SelectPrimitive.ItemText>
                 <SelectPrimitive.ItemIndicator className="absolute right-2 inline-flex items-center">
-                  <Check aria-hidden="true" className="size-3.5 text-ember-ink" />
+                  <Check aria-hidden="true" className="size-3.5 text-brand-ink" />
                 </SelectPrimitive.ItemIndicator>
               </SelectPrimitive.Item>
             ))}
@@ -389,9 +404,9 @@ export const SwitchControl = React.forwardRef<
       ref={ref}
       aria-label={ariaLabel}
       className={cn(
-        "relative h-5 w-9 shrink-0 rounded-full border border-line bg-surface-2 outline-none",
-        "transition-[background-color,border-color,box-shadow] duration-150 ease-[var(--ease-out-expo)]",
-        "data-[state=checked]:border-ember data-[state=checked]:bg-ember disabled:cursor-not-allowed disabled:opacity-40",
+        "relative h-5 w-9 shrink-0 rounded-full border border-hairline bg-recessed outline-none",
+        "transition-shadow duration-150 ease-[var(--ease-out-expo)]",
+        "data-[state=checked]:border-brand data-[state=checked]:bg-brand disabled:cursor-not-allowed disabled:opacity-40",
         "motion-reduce:transition-none",
         controlFocus,
         className,
@@ -446,7 +461,7 @@ export function SegmentedControl<T extends string>({
       orientation="horizontal"
       loop
       className={cn(
-        "inline-flex shrink-0 items-center gap-0.5 rounded-control border border-line bg-surface p-0.5",
+        "inline-flex shrink-0 items-center gap-0.5 rounded-control border border-hairline bg-recessed p-0.5",
         disabled && "opacity-45",
         className,
       )}
@@ -461,7 +476,7 @@ export function SegmentedControl<T extends string>({
             disabled={option.disabled}
             className={cn(
               "relative inline-flex select-none items-center justify-center gap-1.5 rounded-[6px] font-medium",
-              "outline-none transition-colors duration-150 ease-[var(--ease-out-expo)] motion-reduce:transition-none",
+              "outline-none",
               "focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)]",
               "disabled:pointer-events-none disabled:opacity-40",
               size === "sm" ? "h-7 px-2.5 text-label" : "h-8 px-3 text-dense",
@@ -476,7 +491,7 @@ export function SegmentedControl<T extends string>({
                 transition={reduce ? { duration: 0 } : { duration: 0.18, ease: easeOutExpo }}
               />
             ) : null}
-            {Icon ? <Icon className={cn("relative size-3.5", active && "text-ember-ink")} strokeWidth={1.75} /> : null}
+            {Icon ? <Icon className={cn("relative size-3.5", active && "text-brand-ink")} strokeWidth={1.75} /> : null}
             <span className="relative">{option.label}</span>
           </RadioGroupPrimitive.Item>
         );
@@ -502,9 +517,9 @@ export const CheckboxControl = React.forwardRef<
       onCheckedChange={(next) => onCheckedChange?.(next === true)}
       aria-label={ariaLabel}
       className={cn(
-        "grid size-4 shrink-0 place-items-center rounded-[4px] border border-line bg-bg text-ember-fg outline-none",
-        "transition-[background-color,border-color,box-shadow] duration-150 ease-[var(--ease-out-expo)]",
-        "data-[state=checked]:border-ember data-[state=checked]:bg-ember data-[state=indeterminate]:border-ember",
+        "grid size-4 shrink-0 place-items-center rounded-[4px] border border-hairline bg-base text-brand-fg outline-none",
+        "transition-shadow duration-150 ease-[var(--ease-out-expo)]",
+        "data-[state=checked]:border-brand data-[state=checked]:bg-brand data-[state=indeterminate]:border-brand",
         "disabled:cursor-not-allowed disabled:opacity-40 motion-reduce:transition-none",
         controlFocus,
         className,
@@ -548,9 +563,9 @@ export const TabsTrigger = React.forwardRef<
       ref={ref}
       className={cn(
         "relative inline-flex h-11 shrink-0 items-center justify-center px-2.5 text-dense font-medium whitespace-nowrap text-muted outline-none",
-        "transition-colors duration-150 ease-[var(--ease-out-expo)] hover:text-ink disabled:pointer-events-none disabled:opacity-40",
+        "hover:text-ink disabled:pointer-events-none disabled:opacity-40",
         "after:absolute after:inset-x-0.5 after:-bottom-px after:h-0.5 after:rounded-full after:bg-transparent",
-        "data-[state=active]:text-ink data-[state=active]:after:bg-ember motion-reduce:transition-none",
+        "data-[state=active]:text-ink data-[state=active]:after:bg-brand motion-reduce:transition-none",
         "focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] focus-visible:ring-inset",
         className,
       )}

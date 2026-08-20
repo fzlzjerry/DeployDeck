@@ -19,7 +19,7 @@ export function ConfirmDialog() {
       <AlertDialog.Portal>
         <AlertDialog.Overlay className="modal-overlay" />
         <AlertDialog.Content className="modal-content fixed top-1/2 left-1/2 w-[min(440px,calc(100vw-40px))] -translate-x-1/2 -translate-y-1/2 rounded-panel bg-panel p-5 outline-none">
-          <AlertDialog.Title className="text-section font-semibold tracking-[-0.015em] text-ink">
+        <AlertDialog.Title className="text-section font-semibold text-ink">
             {confirm?.title}
           </AlertDialog.Title>
           <AlertDialog.Description className="mt-2 max-w-[52ch] text-pretty text-dense text-muted">

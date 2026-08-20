@@ -1066,7 +1066,8 @@ export async function listWorkerDomains(accountId: string, scriptName?: string):
         projectId: String((domain as { service?: string }).service ?? ""),
         projectName: String((domain as { service?: string }).service ?? ""),
         name: String((domain as { hostname?: string }).hostname ?? ""),
-        status: String((domain as { zone_name?: string }).zone_name ?? "attached"),
+        zoneName: String((domain as { zone_name?: string }).zone_name ?? ""),
+        status: "attached",
         verified: true,
         verificationRecords: [],
       }));

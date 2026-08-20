@@ -31,7 +31,7 @@ export function EmptyState({
       className={cn(
         "flex flex-col items-center justify-center text-center",
         inline ? "gap-1 px-4 py-8" : "h-full min-h-48 px-8 py-10",
-        framed && "rounded-panel border border-line bg-panel",
+        framed && "rounded-panel bg-panel ring-1 ring-line shadow-[var(--shadow-card)]",
         className,
       )}
     >
